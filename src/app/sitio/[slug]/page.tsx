@@ -4,6 +4,7 @@ import { SiteView } from "@/components/site-view";
 import type { SiteContent } from "@/lib/site";
 import { createClient } from "@/lib/supabase/server";
 import { LeadForm } from "./lead-form";
+import { AddToOrder, OrderBar } from "./order";
 
 async function loadSite(slug: string) {
   const supabase = await createClient();
@@ -26,5 +27,12 @@ export default async function PublicSitePage(props: PageProps<"/sitio/[slug]">) 
   const { slug } = await props.params;
   const site = await loadSite(slug);
   if (!site) notFound();
-  return <SiteView site={site} leadForm={<LeadForm slug={slug} cta={site.copy?.cta ?? site.ctaLabel} copy={site.copy} />} />;
+  return (
+    <SiteView
+      site={site}
+      leadForm={<LeadForm slug={slug} cta={site.copy?.cta ?? site.ctaLabel} copy={site.copy} />}
+      orderButton={(s) => <AddToOrder item={s} />}
+      cart={<OrderBar slug={slug} currency={site.currency} copy={site.copy} />}
+    />
+  );
 }

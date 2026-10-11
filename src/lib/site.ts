@@ -3,6 +3,7 @@
 // Los textos se adaptan al país y al trato que eligió el dueño (tú / usted / vos).
 
 import type { BrandKit } from "@/lib/brand";
+import { publicAssetUrl } from "@/lib/business";
 import type { Tables } from "@/lib/database.types";
 import { norm } from "@/lib/interview";
 import { marketFor, say } from "@/lib/markets";
@@ -17,6 +18,18 @@ export type SiteCopy = {
   payments: string;
 };
 
+// Un producto o servicio en la página. Los campos opcionales no existen en páginas publicadas antes de la tienda.
+export type SiteItem = {
+  name: string;
+  price: number | null;
+  id?: string;
+  kind?: "product" | "service";
+  priceMode?: "fixed" | "from" | "quote";
+  description?: string | null;
+  image?: string | null;
+  variants?: { name: string; options: string[] }[];
+};
+
 export type SiteContent = {
   name: string;
   tagline: string;
@@ -24,7 +37,7 @@ export type SiteContent = {
   industry: string;
   zone: string;
   hours: string;
-  services: { name: string; price: number | null }[];
+  services: SiteItem[];
   currency: string;
   secondaryCurrency?: string | null;
   phone?: string | null;
@@ -158,7 +171,16 @@ export function buildSiteContent(
     hours: b.hours ?? "",
     services: services
       .filter((s) => s.active)
-      .map((s) => ({ name: s.name, price: s.price === null ? null : Number(s.price) })),
+      .map((s) => ({
+        id: s.id,
+        name: s.name,
+        price: s.price === null ? null : Number(s.price),
+        kind: s.kind === "product" ? ("product" as const) : ("service" as const),
+        priceMode: (["fixed", "from", "quote"].includes(s.price_mode) ? s.price_mode : "fixed") as SiteItem["priceMode"],
+        description: s.description,
+        image: s.image_path ? publicAssetUrl(s.image_path) : null,
+        variants: Array.isArray(s.variants) ? (s.variants as SiteItem["variants"]) : [],
+      })),
     currency: b.currency,
     secondaryCurrency: b.secondary_currency,
     phone: b.phone,

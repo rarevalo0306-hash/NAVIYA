@@ -14,8 +14,8 @@ import {
   type BrandKit,
   type Palette,
 } from "@/lib/brand";
-import { currencyName, priceLabel } from "@/lib/interview";
-import type { SiteContent } from "@/lib/site";
+import { currencyName, money, priceLabel } from "@/lib/interview";
+import type { SiteContent, SiteItem } from "@/lib/site";
 import { templateById, type SiteTemplate } from "@/lib/site-templates";
 
 // La página web de un negocio, con la plantilla que eligió el dueño. Usa los colores, letras y logo
@@ -130,6 +130,7 @@ type Ctx = {
   h2: string;
   headline: string;
   intro: string;
+  orderButton?: (s: SiteItem) => ReactNode;
 };
 
 function Logo({ c, onDark = false, size = 40 }: { c: Ctx; onDark?: boolean; size?: number }) {
@@ -382,10 +383,28 @@ function Hero({ c }: { c: Ctx }) {
 
 // ---------- Lo que ofrecemos ----------
 
+// Precio como lo puso el dueño ("$250", "desde $250", "A cotizar"); las páginas viejas no traen priceMode.
+export function sitePrice(s: SiteItem, currency: string) {
+  if (!s.priceMode) return priceLabel(s.price, currency);
+  if (s.priceMode === "quote" || s.price === null) return "A cotizar";
+  return s.priceMode === "from" ? `desde ${money(s.price, currency)}` : money(s.price, currency);
+}
+
+function ItemImage({ s, className }: { s: SiteItem; className: string }) {
+  // eslint-disable-next-line @next/next/no-img-element
+  return s.image ? <img src={s.image} alt={s.name} loading="lazy" className={`object-cover ${className}`} /> : null;
+}
+
+function ItemText({ s }: { s: SiteItem }) {
+  return s.description ? <p className="line-clamp-3 text-sm leading-relaxed text-[var(--muted)]">{s.description}</p> : null;
+}
+
 function Services({ c }: { c: Ctx }) {
   const { site, tpl } = c;
   if (!site.services.length) return null;
-  const price = (p: number | null) => priceLabel(p, site.currency);
+  const price = (s: SiteItem) => sitePrice(s, site.currency);
+  const order = (s: SiteItem) => (s.id && c.orderButton ? c.orderButton(s) : null);
+  const rich = Boolean(c.orderButton) || site.services.some((s) => s.image || s.description);
   const note = site.secondaryCurrency ? (
     <p className="text-[var(--muted)]">
       Precios en {currencyName(site.currency)}; también aceptamos {currencyName(site.secondaryCurrency)}.
@@ -398,15 +417,41 @@ function Services({ c }: { c: Ctx }) {
       {note}
     </div>
   );
+  const cards = (list: SiteItem[]) => (
+    <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {list.map((s) => (
+        <li key={s.id ?? s.name} className={`${card} flex flex-col overflow-hidden`}>
+          <ItemImage s={s} className="aspect-square w-full" />
+          <div className="flex flex-1 flex-col justify-between gap-4 p-6">
+            <div className="flex flex-col gap-2">
+              <span className="text-xl font-semibold tracking-tight [font-family:var(--heading)]">{s.name}</span>
+              <ItemText s={s} />
+            </div>
+            <span className="flex flex-wrap items-center justify-between gap-3 text-[var(--eyebrow)]">
+              <span className="font-semibold">{price(s)}</span>
+              {order(s) ?? <Arrow />}
+            </span>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
   let body: ReactNode;
   if (tpl.services === "menu") {
     body = (
       <ul className="grid gap-x-12 md:grid-cols-2">
         {site.services.map((s) => (
-          <li key={s.name} className="flex items-baseline gap-3 border-b border-[var(--line)] py-4">
-            <span className="text-lg font-semibold">{s.name}</span>
-            <span aria-hidden className="flex-1 border-b border-dotted border-[var(--line)]" />
-            <span className="shrink-0 font-semibold text-[var(--eyebrow)]">{price(s.price)}</span>
+          <li key={s.id ?? s.name} className="flex gap-4 border-b border-[var(--line)] py-4">
+            <ItemImage s={s} className="size-20 shrink-0 rounded-[var(--r)]" />
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <div className="flex items-baseline gap-3">
+                <span className="text-lg font-semibold">{s.name}</span>
+                <span aria-hidden className="flex-1 border-b border-dotted border-[var(--line)]" />
+                <span className="shrink-0 font-semibold text-[var(--eyebrow)]">{price(s)}</span>
+              </div>
+              <ItemText s={s} />
+              {order(s) && <div>{order(s)}</div>}
+            </div>
           </li>
         ))}
       </ul>
@@ -415,10 +460,19 @@ function Services({ c }: { c: Ctx }) {
     body = (
       <ol className="flex flex-col">
         {site.services.map((s, i) => (
-          <li key={s.name} className="grid grid-cols-[auto_1fr] items-baseline gap-x-6 gap-y-1 border-t border-[var(--line)] py-6 sm:grid-cols-[4rem_1fr_auto]">
+          <li key={s.id ?? s.name} className="grid grid-cols-[auto_1fr] items-baseline gap-x-6 gap-y-2 border-t border-[var(--line)] py-6 sm:grid-cols-[4rem_1fr_auto]">
             <span className="text-sm font-semibold text-[var(--eyebrow)]">{String(i + 1).padStart(2, "0")}</span>
-            <span className="text-2xl font-semibold tracking-tight [font-family:var(--heading)] sm:text-3xl">{s.name}</span>
-            <span className="col-start-2 text-[var(--muted)] sm:col-start-3">{price(s.price)}</span>
+            <span className="flex items-center gap-4 text-2xl font-semibold tracking-tight [font-family:var(--heading)] sm:text-3xl">
+              <ItemImage s={s} className="size-16 shrink-0 rounded-[var(--r)]" />
+              {s.name}
+            </span>
+            <span className="col-start-2 text-[var(--muted)] sm:col-start-3">{price(s)}</span>
+            {(s.description || order(s)) && (
+              <div className="col-start-2 flex flex-col items-start gap-3">
+                <ItemText s={s} />
+                {order(s)}
+              </div>
+            )}
           </li>
         ))}
       </ol>
@@ -429,39 +483,36 @@ function Services({ c }: { c: Ctx }) {
       <div className="flex flex-col gap-6">
         <ul className="grid gap-3 md:grid-cols-3">
           {top.map((s, i) => (
-            <li key={s.name} className={`flex min-h-48 flex-col justify-between gap-6 rounded-[var(--rl)] p-6 ${i === 0 ? "bg-[var(--btn)] text-[var(--on-btn)]" : "bg-[var(--surface)]"}`}>
-              <span className="text-2xl font-semibold tracking-tight [font-family:var(--heading)]">{s.name}</span>
-              <span className="flex items-center justify-between gap-3 font-semibold">
-                {price(s.price)} <Arrow />
-              </span>
+            <li key={s.id ?? s.name} className={`flex min-h-48 flex-col overflow-hidden rounded-[var(--rl)] ${i === 0 ? "bg-[var(--btn)] text-[var(--on-btn)]" : "bg-[var(--surface)]"}`}>
+              <ItemImage s={s} className="aspect-[4/3] w-full" />
+              <div className="flex flex-1 flex-col justify-between gap-6 p-6">
+                <div className="flex flex-col gap-2">
+                  <span className="text-2xl font-semibold tracking-tight [font-family:var(--heading)]">{s.name}</span>
+                  {s.description && <p className="line-clamp-3 text-sm leading-relaxed opacity-75">{s.description}</p>}
+                </div>
+                <span className="flex flex-wrap items-center justify-between gap-3 font-semibold">
+                  {price(s)} {order(s) ?? <Arrow />}
+                </span>
+              </div>
             </li>
           ))}
         </ul>
-        {rest.length > 0 && (
-          <ul className="flex flex-wrap gap-2">
-            {rest.map((s) => (
-              <li key={s.name} className="rounded-[var(--rb)] border border-[var(--line)] px-4 py-2">
-                {s.name} <span className="text-[var(--muted)]">· {price(s.price)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+        {rest.length > 0 &&
+          (rich ? (
+            cards(rest)
+          ) : (
+            <ul className="flex flex-wrap gap-2">
+              {rest.map((s) => (
+                <li key={s.id ?? s.name} className="rounded-[var(--rb)] border border-[var(--line)] px-4 py-2">
+                  {s.name} <span className="text-[var(--muted)]">· {price(s)}</span>
+                </li>
+              ))}
+            </ul>
+          ))}
       </div>
     );
   } else {
-    body = (
-      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {site.services.map((s) => (
-          <li key={s.name} className={`${card} flex flex-col justify-between gap-6 p-6`}>
-            <span className="text-xl font-semibold tracking-tight [font-family:var(--heading)]">{s.name}</span>
-            <span className="flex items-center justify-between text-[var(--eyebrow)]">
-              <span className="font-semibold">{price(s.price)}</span>
-              <Arrow />
-            </span>
-          </li>
-        ))}
-      </ul>
-    );
+    body = cards(site.services);
   }
   return (
     <section id="servicios" className={`${shell} flex scroll-mt-6 flex-col gap-10 py-16 sm:py-24`}>
@@ -657,11 +708,15 @@ function whatsappLink(phone: string, name: string) {
 export function SiteView({
   site,
   leadForm,
+  orderButton,
+  cart,
   template,
   preview = false,
 }: {
   site: SiteContent;
   leadForm?: ReactNode;
+  orderButton?: (s: SiteItem) => ReactNode; // botón "Agregar al pedido" de cada producto (solo en la página pública)
+  cart?: ReactNode; // barra y hoja del pedido
   template?: string; // para ver otra plantilla sin cambiar la guardada
   preview?: boolean; // dentro de la app: sin botones flotantes
 }) {
@@ -678,6 +733,7 @@ export function SiteView({
     wa,
     waLabel: site.copy?.whatsapp ?? "Escríbenos por WhatsApp",
     waFirst: Boolean(wa && site.whatsappFirst !== false),
+    orderButton,
     initials: site.name
       .split(/\s+/)
       .map((w) => w.charAt(0))
@@ -731,6 +787,7 @@ export function SiteView({
         </div>
         <span className="text-sm text-[var(--muted)]">Página hecha con Orbusiness</span>
       </footer>
+      {cart}
 
       {wa && !preview && (
         <a href={wa} target="_blank" rel="noopener" aria-label={c.waLabel} className="fixed bottom-5 right-5 z-20 flex size-14 items-center justify-center rounded-full bg-[#1F8A4C] text-white shadow-xl md:hidden">

@@ -8,6 +8,7 @@ export function PanelNav({ sitePath, done }: { sitePath: string | null; done: bo
   const path = usePathname();
   const items = [
     ...(done ? [{ href: "/panel", label: "Clientes" }] : [{ href: "/onboarding", label: "← Volver al alta" }]),
+    { href: "/panel/pedidos", label: "Pedidos" },
     { href: "/panel/vender", label: "Lo que vendes" },
     { href: sitePath ?? "/onboarding/web", label: "Mi página", external: Boolean(sitePath) },
     { href: "/onboarding/marca", label: "Mi marca" },

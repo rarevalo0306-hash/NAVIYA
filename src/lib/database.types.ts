@@ -262,6 +262,22 @@ export type Database = {
           data?: Json;
         }
       >;
+      orders: Table<
+        {
+          id: string;
+          business_id: string;
+          contact_id: string | null;
+          kind: string;
+          status: string;
+          items: Json;
+          total: number | null;
+          currency: string;
+          note: string | null;
+          created_at: string;
+          updated_at: string;
+        },
+        { business_id: string; kind: string; items: Json; currency: string; contact_id?: string | null; status?: string; total?: number | null; note?: string | null; updated_at?: string }
+      >;
     };
     Views: { [_ in never]: never };
     Functions: {
@@ -277,6 +293,10 @@ export type Database = {
           p_message: string;
         };
         Returns: boolean;
+      };
+      submit_order: {
+        Args: { p_subdomain: string; p_name: string; p_phone: string; p_email: string; p_note: string; p_items: Json };
+        Returns: string;
       };
     };
     Enums: { [_ in never]: never };
