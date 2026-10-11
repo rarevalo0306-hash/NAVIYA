@@ -26,13 +26,14 @@ import {
   type BrandCtx,
 } from "@/lib/brand-art";
 import { bookPages } from "@/lib/brand-book";
+import { emailSignatureHtml } from "@/lib/brand-signature";
 import { artSvg, logoArt, type Art, type LogoTheme, type LogoVariant } from "@/lib/brand-render";
 
 // Archivos del kit de marca en todos los formatos: SVG (vector), PNG (fondo transparente), JPG,
 // PDF (vector: se abre y se edita en Illustrator), PSD (Photoshop, por capas), Word, paleta de
 // Adobe (.ase) y todo junto en un .zip.
 
-export type Format = "svg" | "png" | "jpg" | "pdf" | "psd" | "docx" | "ase" | "txt";
+export type Format = "svg" | "png" | "jpg" | "pdf" | "psd" | "docx" | "ase" | "txt" | "html";
 export type Group = "Presentación" | "Logo" | "Redes sociales" | "Papelería" | "Mockups" | "Colores y patrón";
 
 type Item = {
@@ -44,14 +45,13 @@ type Item = {
   art?: (c: BrandCtx) => Promise<Art | Art[]>;
 };
 
-const welcomeFor = (c: BrandCtx) =>
-  (
-    c.kit.base ??
-    rulesBase(
-      { name: c.name, industry: c.industry, business_type: null, offers_delivery: null, payment_methods: c.paymentMethods, address_form: c.form, zone: c.zone },
-      c.kit,
-    )
-  ).whatsappWelcome;
+const baseFor = (c: BrandCtx) =>
+  c.kit.base ??
+  rulesBase(
+    { name: c.name, industry: c.industry, business_type: null, offers_delivery: null, payment_methods: c.paymentMethods, address_form: c.form, zone: c.zone },
+    c.kit,
+  );
+const welcomeFor = (c: BrandCtx) => baseFor(c).whatsappWelcome;
 
 const logoItem = (id: string, label: string, variant: LogoVariant, theme: LogoTheme, formats: Format[], px: number): Item => ({
   id,
@@ -66,6 +66,8 @@ export const ITEMS: Item[] = [
   { id: "manual", label: "Manual de marca (libro completo)", group: "Presentación", formats: ["pdf"], px: 1920, art: bookPages },
   { id: "tablero", label: "Tablero de marca (presentación)", group: "Presentación", formats: ["png", "jpg", "pdf"], px: 2400, art: tableroArt },
   { id: "sistema-dinamico", label: "Sistema dinámico (el logo en distintos colores)", group: "Presentación", formats: ["png", "pdf"], px: 2400, art: sistemaArt },
+  { id: "textos", label: "Textos de marca (listos para copiar y pegar)", group: "Presentación", formats: ["docx", "txt"], px: 0 },
+  { id: "firma-correo", label: "Firma de correo (ábrela, cópiala y pégala en tu email)", group: "Presentación", formats: ["html"], px: 0 },
   logoItem("logo", "Logo principal", "principal", "color", ["svg", "png", "jpg", "pdf", "psd"], 2400),
   logoItem("logo-vertical", "Logo vertical", "vertical", "color", ["svg", "png", "pdf"], 1600),
   logoItem("logo-blanco", "Logo en blanco (fondos oscuros)", "principal", "blanco", ["svg", "png", "pdf"], 2400),
@@ -100,6 +102,7 @@ export const FORMAT_LABEL: Record<Format, string> = {
   docx: "Word",
   ase: "Adobe .ase",
   txt: "Texto",
+  html: "HTML",
 };
 
 const MIME: Record<Format | "zip", string> = {
@@ -111,6 +114,7 @@ const MIME: Record<Format | "zip", string> = {
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   ase: "application/octet-stream",
   txt: "text/plain; charset=utf-8",
+  html: "text/html; charset=utf-8",
   zip: "application/zip",
 };
 
@@ -289,6 +293,8 @@ export async function brandFile(c: BrandCtx, item: Item, format: Format): Promis
       if (format === "ase") return toAse(list);
       return list.map((x) => `${x.name}\tHEX ${x.hex}\tRGB ${rgbText(x.hex)}\tCMYK ${cmykText(x.hex)}`).join("\n") + "\n";
     }
+    if (item.id === "textos") return format === "docx" ? textosDocx(c) : brandTexts(c).map(([t, v]) => `${t.toUpperCase()}\n${v}\n`).join("\n");
+    if (item.id === "firma-correo") return signatureFile(c);
     if (format === "docx") return toDocx(c);
     const arts = await item.art!(c);
     const list = Array.isArray(arts) ? arts : [arts];
@@ -310,6 +316,64 @@ export async function brandFile(c: BrandCtx, item: Item, format: Format): Promis
   };
   const data = await out();
   return { data: typeof data === "string" ? Buffer.from(data) : data, type: MIME[format] };
+}
+
+// Los textos de la marca, en el orden en que el dueño los va a usar (redes, Google, WhatsApp...).
+function brandTexts(c: BrandCtx): [string, string][] {
+  const b = baseFor(c);
+  const list = (xs: string[]) => xs.map((x) => `• ${x}`).join("\n");
+  return [
+    ["Eslogan", c.kit.slogan],
+    ["Bio para redes (Instagram / Facebook)", b.bio],
+    ["Descripción para Google y WhatsApp Business", b.description],
+    ["Mensaje de bienvenida de WhatsApp", b.whatsappWelcome],
+    ["Hashtags", b.hashtags.join(" ")],
+    ["Ideas de publicaciones", list(b.postIdeas)],
+    ["Mensajes clave", list(b.messages)],
+    ["Así sí hablamos", list(b.voiceDo)],
+    ["Así no hablamos", list(b.voiceDont)],
+    ["Historia de la marca", b.story],
+    ["Misión", b.mission],
+    ["Visión", b.vision],
+    ["Valores", list(b.values.map((v) => `${v.name}: ${v.text}`))],
+    ["Cliente ideal", b.audience],
+    ["Promesa de marca", b.promise],
+    ["Cómo deben ser las fotos", b.photoStyle],
+  ].filter((x): x is [string, string] => Boolean(x[1]));
+}
+
+async function textosDocx(c: BrandCtx) {
+  const f = fontsById(c.kit.fonts);
+  const p = kitPalette(c.kit);
+  const doc = new Document({
+    creator: "Orbusiness",
+    title: `Textos de marca · ${c.name}`,
+    styles: { default: { document: { run: { font: f.body.family, size: 22 } } } },
+    sections: [
+      {
+        children: [
+          new Paragraph({ spacing: { after: 300 }, children: [new TextRun({ text: `Textos de marca · ${c.name}`, bold: true, size: 40, font: f.heading.family, color: p.primary.replace("#", "") })] }),
+          ...brandTexts(c).flatMap(([title, text]) => [
+            new Paragraph({ spacing: { before: 240, after: 80 }, children: [new TextRun({ text: title, bold: true, size: 26, color: p.dark.replace("#", "") })] }),
+            ...text.split("\n").map((line) => new Paragraph({ spacing: { after: 60 }, children: [new TextRun(line)] })),
+          ]),
+        ],
+      },
+    ],
+  });
+  return Packer.toBuffer(doc);
+}
+
+// La firma como página web: se abre en el navegador, se copia y se pega en la firma del correo.
+function signatureFile(c: BrandCtx) {
+  const sig = emailSignatureHtml({ name: c.name, owner: c.owner, phone: c.phone, address: c.address, siteUrl: c.siteUrl, logoUrl: c.logoUrl ?? null, kit: c.kit });
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Firma de correo</title></head>
+<body style="font-family:Arial,Helvetica,sans-serif;margin:40px;color:#222">
+<p style="color:#666;max-width:560px">Selecciona la firma de abajo (desde el logo hasta el eslogan), cópiala y pégala en la configuración de firma de tu correo
+(Gmail: Configuración → Ver todos los ajustes → Firma. Outlook: Configuración → Correo → Redactar y responder).</p>
+<hr style="margin:24px 0;border:none;border-top:1px solid #ddd">
+${sig}
+</body></html>`;
 }
 
 // Una página del manual, en PNG (para verlo en pantalla).

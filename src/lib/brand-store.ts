@@ -105,5 +105,6 @@ export async function brandCtx(supabase: Supabase, b: Business, kit: BrandKit, h
     services: (services ?? []).filter((s) => s.active).map((s) => ({ name: s.name, price: s.price === null ? null : Number(s.price) })),
     currency: b.currency,
     siteUrl,
+    logoUrl: kitLogoUrl(b),
   };
 }

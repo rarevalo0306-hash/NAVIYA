@@ -22,6 +22,7 @@ export type BrandCtx = {
   services: { name: string; price: number | null }[];
   currency: string;
   siteUrl: string | null;
+  logoUrl?: string | null; // logo PNG público (para la firma de correo)
 };
 
 const TITLE = -0.025; // interletrado de títulos grandes

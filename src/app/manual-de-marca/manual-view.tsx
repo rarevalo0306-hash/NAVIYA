@@ -1,8 +1,6 @@
 import type { BrandKit } from "@/lib/brand";
-import { kitPalette } from "@/lib/brand";
+import { emailSignatureHtml } from "@/lib/brand-signature";
 import { EmailSignature } from "./email-signature";
-
-const esc = (t: string) => t.replace(/[<>&"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 // Visor del manual de marca: las páginas del libro (tipo presentación), el PDF para descargar
 // y la firma de email lista para copiar.
@@ -29,17 +27,7 @@ export function BrandManual({
   img: (n: number) => string;
   pdfUrl: string;
 }) {
-  const p = kitPalette(kit);
-  const site = siteUrl?.replace(/^https:\/\//, "") ?? null;
-  // Firma de email: todos los datos del negocio van escapados.
-  const signature = `<table cellpadding="0" cellspacing="0" style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:${p.dark};line-height:1.45">
-<tr>${logoPngUrl ? `<td style="padding-right:16px;border-right:3px solid ${p.primary};vertical-align:middle"><img src="${esc(logoPngUrl)}" alt="${esc(name)}" width="160" style="display:block;width:160px;height:auto"></td>` : ""}
-<td style="padding-left:16px;vertical-align:middle">
-<strong style="font-size:16px">${esc(owner ?? name)}</strong><br>
-<span style="color:${p.primary};font-weight:bold">${esc(name)}</span><br>
-${phone ? `${esc(phone)}<br>` : ""}${address ? `${esc(address)}<br>` : ""}${site ? `<a href="${esc(siteUrl!)}" style="color:${p.primary}">${esc(site)}</a><br>` : ""}
-<em style="color:#666">${esc(kit.slogan)}</em>
-</td></tr></table>`;
+  const signature = emailSignatureHtml({ name, owner, phone, address, siteUrl, logoUrl: logoPngUrl, kit });
 
   return (
     <div className="min-h-full bg-[#151515] text-white">
