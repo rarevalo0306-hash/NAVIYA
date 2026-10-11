@@ -115,7 +115,7 @@ export async function realtimeClientSecret(opts: { country: string | null; promp
         audio: {
           input: {
             // Sin idioma fijo: casi siempre español, pero el dueño puede pedir inglés.
-            transcription: { model: REALTIME_TRANSCRIBE(), prompt: opts.prompt.slice(0, 800) },
+            transcription: { model: REALTIME_TRANSCRIBE(), ...(opts.prompt ? { prompt: opts.prompt.slice(0, 800) } : {}) },
             // Detecta cuándo el dueño terminó de hablar, pero la IA no contesta sola (lo hace Nuna) ni se
             // calla sola: la interrupción la decide el navegador, para que un ruido corto no la corte.
             turn_detection: { type: "semantic_vad", create_response: false, interrupt_response: false, eagerness: "medium" },
