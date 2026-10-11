@@ -97,10 +97,11 @@ export async function portadaArt(c: BrandCtx): Promise<Art> {
 // Portada para cualquier red (LinkedIn, X, YouTube, Google...): el logo y, si cabe, el eslogan,
 // dentro de la zona segura (YouTube recorta los lados según la pantalla; en LinkedIn la foto de
 // perfil tapa la esquina izquierda, así que ahí la zona empieza más a la derecha: safeX).
-export async function bannerArt(c: BrandCtx, W: number, H: number, safeW = W, safeH = H, safeX = (W - safeW) / 2): Promise<Art> {
+// Con `slogan`, el eslogan va aunque el formato no sea tan ancho (publicaciones horizontales).
+export async function bannerArt(c: BrandCtx, W: number, H: number, safeW = W, safeH = H, safeX = (W - safeW) / 2, slogan = false): Promise<Art> {
   const sx = safeX;
   const sy = (H - safeH) / 2;
-  const wide = safeW / safeH >= 2.2; // en portadas angostas solo va el logo
+  const wide = slogan || safeW / safeH >= 2.2; // en portadas angostas solo va el logo
   const logoH = safeH * (wide ? 0.5 : 0.42);
   const logoSvg = place(await logo(c, "principal", "blanco"), sx + safeW * (wide ? 0.06 : 0.15), sy + (safeH - logoH) / 2, safeW * (wide ? 0.4 : 0.7), logoH, wide ? "start" : "center").svg;
   const size = Math.min(64, safeH * 0.13);
@@ -118,29 +119,44 @@ export async function bannerArt(c: BrandCtx, W: number, H: number, safeW = W, sa
   };
 }
 
-export async function publicacionArt(c: BrandCtx): Promise<Art> {
+// Portada de historia destacada de Instagram: solo el símbolo al centro (Instagram la muestra en círculo).
+export async function destacadaArt(c: BrandCtx): Promise<Art> {
+  const W = 1080;
+  const H = 1920;
+  return {
+    width: W,
+    height: H,
+    layers: [
+      { name: "Fondo", svg: backdropSvg(c.kit, W, H, "oscuro") },
+      { name: "Símbolo", svg: place(await logo(c, "isotipo", "blanco"), 340, 760, 400, 400).svg },
+    ],
+  };
+}
+
+// Publicación cuadrada (1080x1080) o vertical (1080x1350): lo de abajo se acomoda al alto.
+export async function publicacionArt(c: BrandCtx, H = 1080): Promise<Art> {
   const p = kitPalette(c.kit);
   const S = 1080;
   const cta = t3(c, { tu: "Escríbenos", usted: "Escríbanos", vos: "Escribinos" });
   return {
     width: S,
-    height: S,
+    height: H,
     layers: [
-      { name: "Fondo", svg: backdropSvg(c.kit, S, S, "claro") },
+      { name: "Fondo", svg: backdropSvg(c.kit, S, H, "claro") },
       { name: "Logo", svg: place(await logo(c, "principal", "color"), 90, 84, 440, 120, "start").svg },
       { name: "Etiqueta", svg: pill(c.fonts.body, cut(caption(c), 26), 990, 112, 18, p.dark, { anchor: "end" }) },
       {
         name: "Eslogan",
         svg:
           paragraphSvg(c.fonts.heading, c.kit.slogan, 90, 340, 880, 116, p.dark, { maxLines: 4, lineHeight: 1.0, tracking: TITLE }).svg +
-          paragraphSvg(c.fonts.body, c.kit.proposition, 90, 760, 760, 34, mixHex(p.dark, p.light, 0.3), { maxLines: 2, lineHeight: 1.3 }).svg,
+          paragraphSvg(c.fonts.body, c.kit.proposition, 90, H - 320, 760, 34, mixHex(p.dark, p.light, 0.3), { maxLines: 2, lineHeight: 1.3 }).svg,
       },
       {
         name: "Contacto",
         svg:
-          rect(90, 900, 900, 100, "#FFFFFF", 50, ` fill-opacity="0.9"`) +
-          textSvg(c.fonts.body, c.phone ? `${cta}  ·  ${c.phone}` : cta, 140, 950 + (capRatio(c.fonts.body) * 32) / 2, 32, p.dark) +
-          arrow(940, 950, 38, p.primary, onColor(p.primary, p.dark)),
+          rect(90, H - 180, 900, 100, "#FFFFFF", 50, ` fill-opacity="0.9"`) +
+          textSvg(c.fonts.body, c.phone ? `${cta}  ·  ${c.phone}` : cta, 140, H - 130 + (capRatio(c.fonts.body) * 32) / 2, 32, p.dark) +
+          arrow(940, H - 130, 38, p.primary, onColor(p.primary, p.dark)),
       },
     ],
   };

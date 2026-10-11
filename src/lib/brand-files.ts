@@ -9,6 +9,7 @@ import { backdropSvg, cmykText, fontsById, kitPalette, rgbText, rulesBase, type 
 import {
   bannerArt,
   bolsaArt,
+  destacadaArt,
   camisetaArt,
   chatArt,
   cotizacionArt,
@@ -445,10 +446,10 @@ Logo/02 PNG transparente .. Para usar sobre fotos o colores: 300 px (correo y we
 Logo/03 JPG fondo blanco .. Para documentos, Word y donde no se acepta transparencia.
 Logo/04 Iconos web ........ favicon.ico y los íconos para celular (apple-touch-icon, android-chrome) de tu página web.
 Logo/05 Photoshop ......... PSD por capas.
-Listo para usar ........... Una carpeta por red (Facebook, Instagram, WhatsApp, TikTok, Google, LinkedIn, YouTube, X) y correo,
-                            con cada imagen en el tamaño exacto: solo súbela.
-Presentación .............. Manual de marca, tablero, textos de marca (para copiar y pegar) y firma de correo.
-Redes sociales ............ Foto de perfil, portada, publicación e historia (PNG, JPG y PSD).
+Redes sociales ............ Una carpeta por red (Facebook, Instagram, WhatsApp, TikTok, Google, LinkedIn, YouTube, X) con todas
+                            sus plantillas en el tamaño exacto, listas para subir tal cual. En "Editables (Photoshop)" está
+                            cada diseño por capas, una sola vez, con las redes donde se usa.
+Presentación .............. Manual de marca, tablero, textos de marca (para copiar y pegar) y firma de correo (con su logo).
 Papelería ................. Tarjeta, hoja membretada (PDF y Word), cotización y volante para imprenta.
 Mockups ................... Cómo se ve tu marca en letrero, camiseta, bolsa, vehículo y WhatsApp.
 Colores y patrón .......... Paleta (HEX, RGB, CMYK y Adobe .ase) y fondos de marca.
@@ -456,41 +457,59 @@ Colores y patrón .......... Paleta (HEX, RGB, CMYK y Adobe .ase) y fondos de ma
 Hecho con Orbusiness.
 `;
 
-// "Listo para usar": cada red con su archivo en el tamaño exacto, para subirlo tal cual.
-async function readyToUse(c: BrandCtx): Promise<[string, Art, number][]> {
-  const [perfil, portada, post, story, horizontal] = await Promise.all([
+// Plantillas por red: cada una en su tamaño exacto (PNG para subir tal cual) y las que se diseñan
+// también en PSD por capas para editarlas. [carpeta/nombre, arte, ancho en px, con PSD]
+type Template = [string, Art, number, boolean];
+async function socialTemplates(c: BrandCtx): Promise<Template[]> {
+  const [perfil, portada, post, postV, story, destacada] = await Promise.all([
     perfilArt(c),
     portadaArt(c),
     publicacionArt(c),
+    publicacionArt(c, 1350),
     historiaArt(c),
-    logoArt({ ...c.kit, layout: "clasico" }, c.name, "principal", "color", c.fonts),
+    destacadaArt(c),
   ]);
-  const [linkedin, youtube, x, google] = await Promise.all([
+  const [evento, linkedin, linkedinPost, youtube, miniatura, x, xPost, google, googlePost] = await Promise.all([
+    bannerArt(c, 1920, 1005, 1920, 1005, 0, true),
     bannerArt(c, 1584, 396, 1080, 396, 480),
+    bannerArt(c, 1200, 627, 1200, 627, 0, true),
     bannerArt(c, 2560, 1440, 1546, 423),
+    bannerArt(c, 1280, 720, 1280, 720, 0, true),
     bannerArt(c, 1500, 500),
+    bannerArt(c, 1600, 900, 1600, 900, 0, true),
     bannerArt(c, 1080, 608),
+    bannerArt(c, 1200, 900, 1200, 900, 0, true),
   ]);
   return [
-    ["Facebook/Foto de perfil (720x720).png", perfil, 720],
-    ["Facebook/Portada (1640x624).png", portada, 1640],
-    ["Facebook/Publicación (1080x1080).png", post, 1080],
-    ["Facebook/Historia (1080x1920).png", story, 1080],
-    ["Instagram/Foto de perfil (1080x1080).png", perfil, 1080],
-    ["Instagram/Publicación (1080x1080).png", post, 1080],
-    ["Instagram/Historia (1080x1920).png", story, 1080],
-    ["WhatsApp Business/Foto de perfil (640x640).png", perfil, 640],
-    ["WhatsApp Business/Estado (1080x1920).png", story, 1080],
-    ["TikTok/Foto de perfil (720x720).png", perfil, 720],
-    ["Google (Perfil de negocio)/Logo (720x720).png", perfil, 720],
-    ["Google (Perfil de negocio)/Portada (1080x608).png", google, 1080],
-    ["LinkedIn/Foto de perfil (400x400).png", perfil, 400],
-    ["LinkedIn/Portada (1584x396).png", linkedin, 1584],
-    ["YouTube/Foto de perfil (800x800).png", perfil, 800],
-    ["YouTube/Portada (2560x1440).png", youtube, 2560],
-    ["X (Twitter)/Foto de perfil (400x400).png", perfil, 400],
-    ["X (Twitter)/Portada (1500x500).png", x, 1500],
-    ["Correo/Logo para la firma (320px).png", horizontal, 320],
+    ["Facebook/Foto de perfil (720x720)", perfil, 720, false],
+    ["Facebook/Portada (1640x624)", portada, 1640, true],
+    ["Facebook/Publicación cuadrada (1080x1080)", post, 1080, true],
+    ["Facebook/Publicación vertical (1080x1350)", postV, 1080, true],
+    ["Facebook/Historia (1080x1920)", story, 1080, true],
+    ["Facebook/Portada de evento (1920x1005)", evento, 1920, true],
+    ["Instagram/Foto de perfil (1080x1080)", perfil, 1080, false],
+    ["Instagram/Publicación cuadrada (1080x1080)", post, 1080, true],
+    ["Instagram/Publicación vertical (1080x1350)", postV, 1080, true],
+    ["Instagram/Historia (1080x1920)", story, 1080, true],
+    ["Instagram/Portada de Reel (1080x1920)", story, 1080, true],
+    ["Instagram/Portada de historias destacadas (1080x1920)", destacada, 1080, true],
+    ["WhatsApp Business/Foto de perfil (640x640)", perfil, 640, false],
+    ["WhatsApp Business/Estado (1080x1920)", story, 1080, true],
+    ["WhatsApp Business/Imagen para el catálogo (1080x1080)", post, 1080, true],
+    ["TikTok/Foto de perfil (720x720)", perfil, 720, false],
+    ["TikTok/Portada de video (1080x1920)", story, 1080, true],
+    ["Google (Perfil de negocio)/Logo (720x720)", perfil, 720, false],
+    ["Google (Perfil de negocio)/Portada (1080x608)", google, 1080, true],
+    ["Google (Perfil de negocio)/Publicación (1200x900)", googlePost, 1200, true],
+    ["LinkedIn/Foto de perfil (400x400)", perfil, 400, false],
+    ["LinkedIn/Portada (1584x396)", linkedin, 1584, true],
+    ["LinkedIn/Publicación (1200x627)", linkedinPost, 1200, true],
+    ["YouTube/Foto de perfil (800x800)", perfil, 800, false],
+    ["YouTube/Portada (2560x1440)", youtube, 2560, true],
+    ["YouTube/Miniatura de video (1280x720)", miniatura, 1280, true],
+    ["X (Twitter)/Foto de perfil (400x400)", perfil, 400, false],
+    ["X (Twitter)/Portada (1500x500)", x, 1500, true],
+    ["X (Twitter)/Publicación (1600x900)", xPost, 1600, true],
   ];
 }
 
@@ -528,8 +547,27 @@ export async function brandZip(c: BrandCtx) {
       for (const px of [32, 48, 64, 128]) add(`${web}/${brand}_Icono_${px}px.png`, await sharp(icon).resize(px).png().toBuffer());
       continue;
     }
+    if (item.group === "Redes sociales") continue; // van abajo, por red
     for (const format of item.formats) add(`${item.group}/${brand}_${item.id}.${format}`, (await brandFile(c, item, format)).data);
   }
-  for (const [path, art, px] of await readyToUse(c)) add(`Listo para usar/${path}`, await toPng(art, px));
+  // Lo que se repite entre redes (la misma historia para Facebook, Instagram, WhatsApp...) se dibuja una vez.
+  // Los editables (PSD) van una sola vez, diciendo en qué redes se usan: repetirlos por red pesaba el doble.
+  const pngs = new Map<string, Promise<Buffer>>();
+  const editables = new Map<string, { art: Art; px: number; name: string; networks: string[] }>();
+  const ids = new Map<Art, number>();
+  for (const [path, art, px, editable] of await socialTemplates(c)) {
+    if (!ids.has(art)) ids.set(art, ids.size);
+    const key = `${ids.get(art)}:${px}`;
+    if (!pngs.has(key)) pngs.set(key, toPng(art, px));
+    add(`Redes sociales/${path}.png`, await pngs.get(key)!);
+    const [network, name] = path.split("/");
+    if (!editable) continue;
+    const e = editables.get(key) ?? { art, px, name, networks: [] };
+    if (!e.networks.includes(network)) e.networks.push(network);
+    editables.set(key, e);
+  }
+  for (const e of editables.values()) add(`Redes sociales/Editables (Photoshop)/${e.name} - ${e.networks.join(", ")}.psd`, await toPsd(e.art, e.px));
+  const horizontal = await logoArt({ ...c.kit, layout: "clasico" }, c.name, "principal", "color", c.fonts);
+  add("Presentación/Firma de correo - logo (320px).png", await toPng(horizontal, 320));
   return { data: Buffer.from(zipSync(files, { level: 6 })), type: MIME.zip };
 }

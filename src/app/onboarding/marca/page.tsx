@@ -42,7 +42,7 @@ const OPTIONS = [
 const INCLUDES = [
   "Tablero de marca para presentar tu identidad, como lo hacen las agencias",
   "Logo en todas sus versiones (horizontal, vertical, blanco, un color) + símbolo y sello, en SVG, PNG en 4 tamaños, JPG, PDF para Illustrator y PSD para Photoshop, más favicon e íconos para tu página web",
-  "Listo para usar en cada red: Facebook, Instagram, WhatsApp, TikTok, Google, LinkedIn, YouTube y X, cada imagen en su tamaño exacto",
+  "Todas las plantillas de cada red (Facebook, Instagram, WhatsApp, TikTok, Google, LinkedIn, YouTube y X) en su tamaño exacto: perfil, portadas, publicaciones, historias, reels, miniaturas y más, también editables en Photoshop",
   "Base de marca: historia, misión, visión, valores, cliente ideal, promesa y forma de hablar",
   "Textos listos en Word para copiar y pegar: bio para redes, descripción para Google y WhatsApp, mensaje de bienvenida, hashtags e ideas de publicaciones",
   "Firma de correo con tu logo, lista para Gmail u Outlook",
