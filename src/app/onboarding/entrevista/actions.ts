@@ -375,7 +375,9 @@ export async function startGeminiVoice(): Promise<{ token: string; model: string
   const instructions = [
     chatRules(b),
     "Estás hablando por voz en tiempo real: frases cortas y naturales, una pregunta a la vez. " +
-      "Habla SIEMPRE en español latinoamericano neutro, como una presentadora mexicana: nunca con acento de España ni de Estados Unidos " +
+      // El dueño de Orbusiness eligió la pronunciación de Madrid; las palabras y el trato siguen siendo los del país del dueño.
+      "Habla SIEMPRE con acento de España, como una mujer joven de Madrid, suave y cálida (nunca con acento de Estados Unidos), " +
+      "pero usa las palabras y el trato del país del dueño (nada de «vosotros» ni modismos españoles) " +
       "(solo los nombres propios en inglés se dicen en inglés; si el dueño pide inglés, cambia a inglés). " +
       "Ignora ruidos, televisión o pláticas de fondo que no sean para ti. Si no entendiste, pide que te lo repita.",
     "Cada vez que el dueño diga o corrija un dato, llama a «anotar» con solo lo nuevo, sin decirle que lo estás anotando. " +
