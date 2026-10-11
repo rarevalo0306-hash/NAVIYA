@@ -384,14 +384,97 @@ export async function bookPage(c: BrandCtx, n: number) {
   return { data: await toPng(page, 1920), type: MIME.png, count: pages.length };
 }
 
+// Logos como los entregan las agencias: vector, PNG transparente en 4 tamaños, JPG con fondo
+// blanco, íconos web y Photoshop, con nombres claros (Negocio_Logo_Principal_Color_1200px.png).
+const LOGO_NAMES: Record<string, string> = {
+  logo: "Logo_Principal_Color",
+  "logo-vertical": "Logo_Vertical_Color",
+  "logo-blanco": "Logo_Principal_Blanco",
+  "logo-un-color": "Logo_Principal_UnColor",
+  isotipo: "Simbolo_Color",
+  sello: "Sello_Color",
+};
+const PNG_SIZES = [300, 600, 1200, 2000];
+
+// "Los Loquitos.com" -> "LosLoquitos": sin espacios ni acentos, para nombres de archivo.
+const fileBrand = (name: string) =>
+  name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\.[a-z]{2,4}$/i, "")
+    .split(/[^A-Za-z0-9]+/)
+    .filter(Boolean)
+    .map((w) => w[0].toUpperCase() + w.slice(1))
+    .join("") || "Marca";
+
+// favicon.ico con 16, 32 y 48 px (el formato .ico guarda varios PNG juntos).
+async function toIco(png: Buffer) {
+  const sizes = [16, 32, 48];
+  const imgs = await Promise.all(sizes.map((px) => sharp(png).resize(px, px).png().toBuffer()));
+  const head = Buffer.alloc(6 + 16 * imgs.length);
+  head.writeUInt16LE(1, 2);
+  head.writeUInt16LE(imgs.length, 4);
+  let offset = head.length;
+  imgs.forEach((img, i) => {
+    const o = 6 + 16 * i;
+    head.writeUInt8(sizes[i], o);
+    head.writeUInt8(sizes[i], o + 1);
+    head.writeUInt16LE(1, o + 4);
+    head.writeUInt16LE(32, o + 6);
+    head.writeUInt32LE(img.length, o + 8);
+    head.writeUInt32LE(offset, o + 12);
+    offset += img.length;
+  });
+  return Buffer.concat([head, ...imgs]);
+}
+
+const README = (name: string) => `KIT DE MARCA · ${name}
+
+Logo/01 Vector ............ SVG y PDF: para imprenta, rótulos y diseñadores (se agrandan sin perder calidad; el PDF se edita en Illustrator).
+Logo/02 PNG transparente .. Para usar sobre fotos o colores: 300 px (correo y web), 600 px, 1200 px (redes) y 2000 px (impresión pequeña).
+Logo/03 JPG fondo blanco .. Para documentos, Word y donde no se acepta transparencia.
+Logo/04 Iconos web ........ favicon.ico y los íconos para celular (apple-touch-icon, android-chrome) de tu página web.
+Logo/05 Photoshop ......... PSD por capas.
+Presentación .............. Manual de marca, tablero, textos de marca (para copiar y pegar) y firma de correo.
+Redes sociales ............ Foto de perfil, portada, publicación e historia (PNG, JPG y PSD).
+Papelería ................. Tarjeta, hoja membretada (PDF y Word), cotización y volante para imprenta.
+Mockups ................... Cómo se ve tu marca en letrero, camiseta, bolsa, vehículo y WhatsApp.
+Colores y patrón .......... Paleta (HEX, RGB, CMYK y Adobe .ase) y fondos de marca.
+
+Hecho con Orbusiness.
+`;
+
 // Todo el kit en un .zip, ordenado en carpetas.
 export async function brandZip(c: BrandCtx) {
   const files: Record<string, Uint8Array> = {};
+  const brand = fileBrand(c.name);
+  const add = (path: string, data: Buffer | string) => (files[path] = new Uint8Array(typeof data === "string" ? Buffer.from(data) : data));
+  add("LEEME.txt", README(c.name));
   for (const item of ITEMS) {
-    for (const format of item.formats) {
-      const { data } = await brandFile(c, item, format);
-      files[`${item.group}/${item.id}.${format}`] = new Uint8Array(data);
+    const logoName = LOGO_NAMES[item.id];
+    if (logoName) {
+      const art = first(await item.art!(c));
+      const n = `${brand}_${logoName}`;
+      add(`Logo/01 Vector/${n}.svg`, artSvg(art));
+      add(`Logo/01 Vector/${n}.pdf`, await toPdf([art], `${item.label} · ${c.name}`, 3));
+      const big = await toPng(art, 2000);
+      for (const px of PNG_SIZES) add(`Logo/02 PNG transparente/${n}_${px}px.png`, px === 2000 ? big : await sharp(big).resize({ width: px }).png().toBuffer());
+      // El logo blanco sobre fondo blanco no se vería.
+      if (item.id !== "logo-blanco") add(`Logo/03 JPG fondo blanco/${n}_2000px.jpg`, await sharp(big).flatten({ background: "#FFFFFF" }).jpeg({ quality: 92 }).toBuffer());
+      if (item.formats.includes("psd")) add(`Logo/05 Photoshop/${n}.psd`, await toPsd(art, item.px));
+      continue;
     }
+    if (item.id === "icono-app") {
+      const icon = await toPng(first(await item.art!(c)), 512);
+      const web = "Logo/04 Iconos web";
+      add(`${web}/favicon.ico`, await toIco(icon));
+      add(`${web}/apple-touch-icon.png`, await sharp(icon).resize(180).png().toBuffer());
+      add(`${web}/android-chrome-192x192.png`, await sharp(icon).resize(192).png().toBuffer());
+      add(`${web}/android-chrome-512x512.png`, icon);
+      for (const px of [32, 48, 64, 128]) add(`${web}/${brand}_Icono_${px}px.png`, await sharp(icon).resize(px).png().toBuffer());
+      continue;
+    }
+    for (const format of item.formats) add(`${item.group}/${brand}_${item.id}.${format}`, (await brandFile(c, item, format)).data);
   }
   return { data: Buffer.from(zipSync(files, { level: 6 })), type: MIME.zip };
 }
