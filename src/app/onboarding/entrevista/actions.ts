@@ -16,7 +16,9 @@ import {
   type Extraction,
   type QuestionKey,
 } from "@/lib/interview";
-import { converse, extractAnswer, factAnswer, factExtraction, nunaUsesAI } from "@/lib/nuna";
+import { geminiInterviewToken, geminiLiveEnabled } from "@/lib/gemini-live";
+import { FactsSchema, chatRules, converse, extractAnswer, factAnswer, factExtraction, nunaUsesAI, type Facts } from "@/lib/nuna";
+import { underDailyLimit } from "@/lib/voice-ai";
 import type { createClient } from "@/lib/supabase/server";
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
@@ -203,14 +205,37 @@ async function chatTurn(supabase: Supabase, userId: string, business: BusinessRo
   });
   if (!out) return false;
 
-  // Llena todo lo que se dijo en la plática (con las mismas validaciones de siempre), en orden:
-  // el país va antes que el teléfono y la moneda.
+  const { updated, filled } = await applyFacts(supabase, userId, business, out.facts);
+  await supabase.from("interview_messages").insert({ business_id: business.id, role: "owner", step_key: `chat|${filled.join(",")}`, content: answer });
+
+  const still = await missingFor(supabase, updated);
+  if (!still.length) {
+    if (updated.onboarding_step === "interview") {
+      // Primero pregunta si quiere agregar algo; con lo que conteste (ya guardado arriba), cierra.
+      if (step === "wrapup") await finish(supabase, updated);
+      else await nuna(supabase, business.id, "wrapup", `${out.reply} ${WRAPUP(updated)}`);
+    } else {
+      await nuna(supabase, business.id, "done", `${out.reply} Listo, ya quedó todo actualizado.`);
+    }
+  } else {
+    // Si la IA cerró antes de tiempo, Nuna sigue con lo que falta.
+    const reply = out.finished || !out.reply.includes("?") ? `${out.reply} ${ask(still[0], updated)}` : out.reply;
+    await nuna(supabase, business.id, "chat", reply.trim());
+  }
+  revalidatePath("/onboarding", "layout");
+  return true;
+}
+
+// Llena lo que se dijo en la plática (con las mismas validaciones de siempre), en orden: el país
+// va antes que el teléfono y la moneda. Devuelve el negocio actualizado y qué preguntas quedaron contestadas.
+async function applyFacts(supabase: Supabase, userId: string, business: BusinessRow, facts: Facts) {
+  const { data: services } = await supabase.from("services").select("name, price").eq("business_id", business.id).order("sort");
   let b = business;
   const patch: BusinessPatch = {};
   const filled: QuestionKey[] = [];
   let newServices: { name: string; price: number | null }[] | null = null;
   for (const q of QUESTIONS) {
-    const fact = factAnswer(q.key, out.facts);
+    const fact = factAnswer(q.key, facts);
     if (!fact) continue;
     const ex = factExtraction(q.key, fact, b);
     if (!ex.ok) continue;
@@ -245,7 +270,6 @@ async function chatTurn(supabase: Supabase, userId: string, business: BusinessRo
       .insert(newServices.map((s, i) => ({ business_id: business.id, name: s.name, price: s.price, sort: i })));
     if (error) throw new Error(error.message);
   }
-  await supabase.from("interview_messages").insert({ business_id: business.id, role: "owner", step_key: `chat|${filled.join(",")}`, content: answer });
   if (Object.keys(patch).length || newServices) {
     await supabase.from("audit_log").insert({
       business_id: business.id,
@@ -255,31 +279,16 @@ async function chatTurn(supabase: Supabase, userId: string, business: BusinessRo
       data: { patch, services: newServices } as never,
     });
   }
-
-  const still = await missingFor(supabase, updated);
-  if (!still.length) {
-    if (updated.onboarding_step === "interview") {
-      // Primero pregunta si quiere agregar algo; con lo que conteste (ya guardado arriba), cierra.
-      if (step === "wrapup") await finish(supabase, updated);
-      else await nuna(supabase, business.id, "wrapup", `${out.reply} ${WRAPUP(updated)}`);
-    } else {
-      await nuna(supabase, business.id, "done", `${out.reply} Listo, ya quedó todo actualizado.`);
-    }
-  } else {
-    // Si la IA cerró antes de tiempo, Nuna sigue con lo que falta.
-    const reply = out.finished || !out.reply.includes("?") ? `${out.reply} ${ask(still[0], updated)}` : out.reply;
-    await nuna(supabase, business.id, "chat", reply.trim());
-  }
-  revalidatePath("/onboarding", "layout");
-  return true;
+  return { updated, filled };
 }
 
-async function missingFor(supabase: Supabase, b: BusinessRow) {
+// `extra`: preguntas contestadas en la plática por voz que todavía no tienen mensaje guardado.
+async function missingFor(supabase: Supabase, b: BusinessRow, extra: string[] = []) {
   const [{ data: services }, { data: answered }] = await Promise.all([
     supabase.from("services").select("name, price").eq("business_id", b.id),
     supabase.from("interview_messages").select("step_key").eq("business_id", b.id).eq("role", "owner"),
   ]);
-  const keys = new Set((answered ?? []).flatMap((m) => answeredKeysOf(m.step_key)));
+  const keys = new Set([...(answered ?? []).flatMap((m) => answeredKeysOf(m.step_key)), ...extra]);
   return missingQuestions(b, services ?? [], keys);
 }
 
@@ -343,3 +352,74 @@ export async function restartInterview() {
   });
   revalidatePath("/onboarding", "layout");
 }
+
+// ---------- Entrevista por voz con Gemini Live ----------
+// Gemini platica en tiempo real; estas acciones arrancan la sesión, guardan los datos que anota
+// y dejan la plática escrita en el chat (para verla y para retomarla).
+
+const keysOf = (keys: unknown) =>
+  Array.isArray(keys) ? keys.filter((k): k is QuestionKey => QUESTIONS.some((q) => q.key === k)) : [];
+const askFor = (q: (typeof QUESTIONS)[number], b: BusinessRow) => `${q.label} (${q.key === "owner" ? "¿Cómo te llamas?" : q.text(b)})`;
+
+export async function startGeminiVoice(): Promise<{ token: string; model: string } | { error: string }> {
+  const { supabase, user, business: b } = await requireBusiness();
+  if (!geminiLiveEnabled()) return { error: "Voz con Gemini no configurada" };
+  if (!(await underDailyLimit(supabase, b.id, "voice.realtime"))) return { error: "Límite de voz de hoy alcanzado" };
+  const [{ data: history }, { data: services }, missing] = await Promise.all([
+    supabase.from("interview_messages").select("role, content").eq("business_id", b.id).order("created_at"),
+    supabase.from("services").select("name, price").eq("business_id", b.id).order("sort"),
+    missingFor(supabase, b),
+  ]);
+  const known = QUESTIONS.map((q) => [q.label, describeAnswer(q.key, b, services ?? [], true)] as const).filter(([, v]) => v);
+  const started = (history ?? []).some((m) => m.role === "owner");
+  const instructions = [
+    chatRules(b),
+    "Estás hablando por voz en tiempo real: frases cortas y naturales, una pregunta a la vez. " +
+      "Habla SIEMPRE en español latinoamericano neutro, como una presentadora mexicana: nunca con acento de España ni de Estados Unidos " +
+      "(solo los nombres propios en inglés se dicen en inglés; si el dueño pide inglés, cambia a inglés). " +
+      "Ignora ruidos, televisión o pláticas de fondo que no sean para ti. Si no entendiste, pide que te lo repita.",
+    "Cada vez que el dueño diga o corrija un dato, llama a «anotar» con solo lo nuevo, sin decirle que lo estás anotando. " +
+      "«anotar» te dice qué falta todavía: síguelo. Cuando ya no falte nada, pregúntale si hay algo más que quiera contarte de su negocio. " +
+      `Cuando diga que no (o ya lo anotaste), despídete con algo como: «${CLOSING(b.owner_name, b)}» y llama a «terminar_entrevista».`,
+    `Lo que ya sabes: ${known.map(([l, v]) => `${l}: ${v}`).join("; ") || "nada todavía"}.`,
+    missing.length ? `Lo que falta saber (en este orden más o menos): ${missing.map((q) => askFor(q, b)).join("; ")}.` : "Ya no falta ningún dato.",
+    started
+      ? `La plática hasta ahora (por escrito):\n${(history ?? []).slice(-30).map((m) => `${m.role === "owner" ? "Dueño" : "Nuna"}: ${m.content}`).join("\n")}\n` +
+        "Cuando el dueño te diga «hola», salúdalo por su nombre y retoma donde iban, sin volver a presentarte."
+      : `Cuando el dueño te diga «hola», salúdalo y preséntate así: «${QUESTIONS[0].text(b)}»`,
+  ].join("\n\n");
+  const out = await geminiInterviewToken(instructions).catch((e: unknown) => {
+    console.error("Gemini Live: no se pudo crear la llave temporal", e);
+    return null;
+  });
+  if (!out) return { error: "No se pudo iniciar la voz" };
+  await supabase.from("audit_log").insert({ business_id: b.id, actor: "owner", actor_user_id: user.id, action: "voice.realtime", data: { engine: "gemini" } });
+  return out;
+}
+
+// Herramienta «anotar»: guarda lo nuevo y le dice a Gemini qué falta. `turnKeys`: lo ya anotado en este turno.
+export async function voiceSave(raw: unknown, turnKeys: unknown): Promise<{ filled: QuestionKey[]; missing: string[] }> {
+  const { supabase, user, business } = await requireBusiness();
+  const facts = FactsSchema.safeParse(raw);
+  const { updated, filled } = facts.success ? await applyFacts(supabase, user.id, business, facts.data) : { updated: business, filled: [] };
+  const missing = await missingFor(supabase, updated, [...keysOf(turnKeys), ...filled]);
+  return { filled, missing: missing.map((q) => askFor(q, updated)) };
+}
+
+// Deja escrito un turno de la plática por voz. Con `end`, cierra la entrevista si ya no falta nada.
+export async function voiceLog(turn: { owner: string; nuna: string; keys: unknown; end: boolean }): Promise<{ done: boolean }> {
+  const { supabase, business } = await requireBusiness();
+  const keys = keysOf(turn.keys);
+  const owner = String(turn.owner ?? "").trim().slice(0, 2000);
+  const said = String(turn.nuna ?? "").trim().slice(0, 2000);
+  if (owner) await supabase.from("interview_messages").insert({ business_id: business.id, role: "owner", step_key: `chat|${keys.join(",")}`, content: owner });
+  if (said) await nuna(supabase, business.id, "chat", said);
+  let done = false;
+  if (turn.end && business.onboarding_step === "interview" && !(await missingFor(supabase, business, keys)).length) {
+    await finish(supabase, business);
+    done = true;
+  }
+  revalidatePath("/onboarding", "layout");
+  return { done };
+}
+

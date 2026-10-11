@@ -1,4 +1,5 @@
 import { ButtonLink, Card, PageTitle } from "@/components/ui";
+import { geminiLiveEnabled } from "@/lib/gemini-live";
 import { requireBusiness } from "@/lib/business";
 import { QUESTIONS, answeredKeysOf, describeAnswer, missingQuestions } from "@/lib/interview";
 import { nunaUsesAI } from "@/lib/nuna";
@@ -51,6 +52,7 @@ export default async function InterviewPage() {
         <div className="flex flex-col gap-3">
           <InterviewChat messages={messages ?? []} open={open} lang={voiceLang(business.country_code)} aiVoice={aiVoiceEnabled()} realtime={realtimeEnabled()} ownerName={business.owner_name}
             nextHref={business.onboarding_step === "brand" ? "/onboarding/marca" : null}
+            gemini={geminiLiveEnabled()}
           />
           {missing.length > 0 && (
             <form action={completeMissing} className="flex flex-wrap items-center gap-3 rounded-[24px] border border-lime/40 bg-lime/10 p-5">

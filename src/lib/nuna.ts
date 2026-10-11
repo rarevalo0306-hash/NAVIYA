@@ -486,7 +486,7 @@ export async function extractAnswer(key: QuestionKey, answer: string, b: B, prev
 // algo, vale lo último) y decide qué contestar y qué preguntar de lo que falta.
 
 const opt = <T extends z.ZodType>(schema: T) => schema.nullable().catch(null);
-const FactsSchema = z.object({
+export const FactsSchema = z.object({
   owner_name: opt(z.string()),
   business_name: opt(z.string()),
   country: opt(z.string()),
@@ -545,31 +545,38 @@ export function factExtraction(key: QuestionKey, answer: Answer, b: B): Extracti
   return extractMain(key, answer, b);
 }
 
+// Cómo platica Nuna en la entrevista (texto o voz): la persona, qué vende Orbusiness y las reglas de la plática.
+export function chatRules(b: B) {
+  const form = { tu: "tú", usted: "usted", vos: "vos" }[ownerForm(b)];
+  const market = marketContext(marketFor(b.country_code));
+  return (
+    NUNA_PERSONA +
+    "Estás platicando con el dueño de un negocio pequeño como lo haría una persona de verdad: escuchas y te interesas por lo que te cuenta. " +
+    `Qué hace Orbusiness: ${ORBUSINESS_PITCH} ` +
+    "Cómo platicas: reacciona a lo que te dice (con algo concreto de lo que contó, no frases genéricas), y luego pregunta UNA cosa a la vez de lo que falta, " +
+    "en un orden natural (primero quién es y su negocio, luego qué vende y dónde, luego cómo trabaja y cobra). " +
+    "Cuando ya sepas cómo se llama su negocio, pregúntale UNA sola vez (si no lo ha dicho) si ya tiene logo o marca y si ya tiene página web, " +
+    "y toma en cuenta su respuesta (lo que ya tiene se aprovecha; no le vendas lo que ya tiene). " +
+    "Nunca juzgues ni te sorprendas de sus horarios, precios o forma de trabajar (nada de '¡uy!', '¡wow!', 'qué pesado' ni 'qué cansado'): " +
+    "reacciona con respeto y con algo útil para su negocio. " +
+    "Si te da varios datos juntos, apúntalos todos y no los vuelvas a preguntar. Si algo no quedó claro o parece mal escuchado (nombres raros, palabras cortadas), " +
+    "pregunta para confirmar en vez de suponer. Si te corrige, acéptalo con naturalidad y usa lo nuevo. Si te pregunta algo, contéstale breve y sigue. " +
+    "Si pregunta precios, no inventes cifras: dile que al final le muestras los planes. " +
+    "Mensajes cortos (máximo 3 oraciones), como en WhatsApp, en el español natural del país (o en inglés si lo pidió); nada de listas ni de sonar a formulario. Nunca inventes datos. " +
+    `Háblale de ${form}. ${market ?? ""} `
+  );
+}
+
 export async function converse(opts: {
   b: B & Partial<Pick<BusinessRow, "zone" | "hours" | "phone">>;
   history: { role: string; content: string }[];
   known: string[]; // lo que ya está guardado, en texto
   missing: { label: string; hint: string; ask: string }[];
 }): Promise<{ reply: string; finished: boolean; facts: Facts } | null> {
-  const form = { tu: "tú", usted: "usted", vos: "vos" }[ownerForm(opts.b)];
-  const market = marketContext(marketFor(opts.b.country_code));
   const started = Date.now();
   const out = await aiJson({
     system:
-      NUNA_PERSONA +
-      "Estás platicando con el dueño de un negocio pequeño como lo haría una persona de verdad: escuchas y te interesas por lo que te cuenta. " +
-      `Qué hace Orbusiness: ${ORBUSINESS_PITCH} ` +
-      "Cómo platicas: reacciona a lo que te dice (con algo concreto de lo que contó, no frases genéricas), y luego pregunta UNA cosa a la vez de lo que falta, " +
-      "en un orden natural (primero quién es y su negocio, luego qué vende y dónde, luego cómo trabaja y cobra). " +
-      "Cuando ya sepas cómo se llama su negocio, pregúntale UNA sola vez (si no lo ha dicho) si ya tiene logo o marca y si ya tiene página web, " +
-      "y toma en cuenta su respuesta (lo que ya tiene se aprovecha; no le vendas lo que ya tiene). " +
-      "Nunca juzgues ni te sorprendas de sus horarios, precios o forma de trabajar (nada de '¡uy!', '¡wow!', 'qué pesado' ni 'qué cansado'): " +
-      "reacciona con respeto y con algo útil para su negocio. " +
-      "Si te da varios datos juntos, apúntalos todos y no los vuelvas a preguntar. Si algo no quedó claro o parece mal escuchado (nombres raros, palabras cortadas), " +
-      "pregunta para confirmar en vez de suponer. Si te corrige, acéptalo con naturalidad y usa lo nuevo. Si te pregunta algo, contéstale breve y sigue. " +
-      "Si pregunta precios, no inventes cifras: dile que al final le muestras los planes. " +
-      "Mensajes cortos (máximo 3 oraciones), como en WhatsApp, en el español natural del país (o en inglés si lo pidió); nada de listas ni de sonar a formulario. Nunca inventes datos. " +
-      `Háblale de ${form}. ${market ?? ""} ` +
+      chatRules(opts.b) +
       // Solo lo nuevo: lo anterior ya está guardado, y una respuesta corta sale más rápido.
       "facts: SOLO los datos que el dueño dijo o corrigió en su ÚLTIMO mensaje (puedes usar la plática para entenderlo); omite todas las demás claves. " +
       "business_name es el nombre del negocio tal cual (puede estar en inglés). services: la lista completa de productos o categorías y/o servicios (con precio solo si lo dijo), solo si habló de eso. " +

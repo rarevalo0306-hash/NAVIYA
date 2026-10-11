@@ -4,9 +4,10 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { Fish } from "@/components/fish";
 import { canSpeak, pickVoice, recognitionClass, sentences, speakable, type Recognition } from "@/lib/voice";
+import { GeminiVoice } from "@/lib/voice-gemini";
 import { canRealtime, RealtimeVoice } from "@/lib/voice-realtime";
 import { canRecord, startRecording, type RecorderHandle } from "@/lib/voice-recorder";
-import { answerInterview } from "./actions";
+import { answerInterview, startGeminiVoice, voiceLog, voiceSave } from "./actions";
 
 type Message = { id: string; role: string; content: string; step_key?: string | null };
 
@@ -62,6 +63,7 @@ export function InterviewChat({
   realtime = false,
   ownerName = null,
   nextHref = null,
+  gemini = false,
 }: {
   messages: Message[];
   open: boolean;
@@ -70,6 +72,7 @@ export function InterviewChat({
   realtime?: boolean;
   ownerName?: string | null;
   nextHref?: string | null; // a dónde pasar solo cuando Nuna cierra la entrevista
+  gemini?: boolean; // la plática por voz la lleva Gemini Live (escucha, piensa y habla)
 }) {
   const router = useRouter();
   const [draft, setDraft] = useState("");
@@ -93,6 +96,7 @@ export function InterviewChat({
   const afterSpeakRef = useRef<(() => void) | null>(null);
   const useAi = useRef(aiVoice);
   const rtRef = useRef<RealtimeVoice | null>(null); // conversación en tiempo real
+  const geminiRef = useRef<GeminiVoice | null>(null); // conversación con Gemini Live
   const [live, setLive] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const pendingRef = useRef(false);
@@ -137,6 +141,8 @@ export function InterviewChat({
   const stopAll = useCallback(() => {
     rtRef.current?.close();
     rtRef.current = null;
+    geminiRef.current?.close();
+    geminiRef.current = null;
     setLive(false);
     recRef.current?.abort();
     recRef.current = null;
@@ -365,6 +371,7 @@ export function InterviewChat({
       if (canSpeak()) window.speechSynthesis.cancel();
       void audioCtxRef.current?.close().catch(() => {});
       rtRef.current?.close();
+      geminiRef.current?.close();
       if (leaveTimer.current) clearTimeout(leaveTimer.current);
     };
   }, [aiVoice, realtime]);
@@ -374,6 +381,7 @@ export function InterviewChat({
     if (!lastNuna || lastNuna === spokenRef.current) return;
     const from = messages.findIndex((m) => m.id === spokenRef.current);
     spokenRef.current = lastNuna;
+    if (geminiRef.current) return; // con Gemini, lo que dice ya sonó: el mensaje solo deja la plática escrita
     const fresh = messages.slice(from + 1).filter((m) => m.role !== "owner");
     // Nuna cerró la entrevista: cuando termine de despedirse, se pasa solo al siguiente paso.
     const leave = nextHref && fresh.some((m) => m.step_key === "done") ? () => (stopAll(), router.push(nextHref)) : null;
@@ -404,15 +412,12 @@ export function InterviewChat({
     if (!next) return stopAll();
     unlockAudio();
     const last = messages.filter((m) => m.role !== "owner").at(-1);
-    if (realtime && canRealtime()) {
-      // Al conectarse saluda primero; si ya iban a media plática, retoma donde iban.
-      const started = messages.some((m) => m.role === "owner");
-      const first = ownerName?.split(/\s+/)[0];
-      void startRealtime(
-        last ? (started ? `¡Hola${first ? `, ${first}` : ""}! Qué gusto escucharte. Seguimos donde íbamos: ${last.content}` : last.content) : null,
-      );
-      return;
-    }
+    // Al conectarse saluda primero; si ya iban a media plática, retoma donde iban.
+    const started = messages.some((m) => m.role === "owner");
+    const first = ownerName?.split(/\s+/)[0];
+    const firstText = last ? (started ? `¡Hola${first ? `, ${first}` : ""}! Qué gusto escucharte. Seguimos donde íbamos: ${last.content}` : last.content) : null;
+    if (gemini && canRealtime()) return void startGemini(firstText);
+    if (realtime && canRealtime()) return void startRealtime(firstText);
     const then = () => {
       if (voiceModeRef.current && open) listen(true);
     };
@@ -483,6 +488,70 @@ export function InterviewChat({
     }
   }
 
+  // Plática con Gemini Live: ella lleva la conversación y va anotando con sus herramientas.
+  // Si no se puede conectar, sigue con la voz de OpenAI (o la del navegador).
+  async function startGemini(firstText: string | null) {
+    setConnecting(true);
+    let keys: string[] = []; // datos anotados en este turno (para marcar qué contestó el dueño)
+    let ending = false;
+    const gv = new GeminiVoice({
+      onSpeaking: setSpeaking,
+      onListening: setListening,
+      onTool: async (name, args) => {
+        if (name === "terminar_entrevista") {
+          ending = true;
+          return { ok: true };
+        }
+        if (name !== "anotar") return { error: "Herramienta desconocida" };
+        const r = await voiceSave(args, keys);
+        keys = [...keys, ...r.filled];
+        return { faltan: r.missing.length ? r.missing : "Nada. Pregúntale si quiere agregar algo más." };
+      },
+      onTurn: (owner, said) => {
+        const turn = { owner, nuna: said, keys, end: ending };
+        keys = [];
+        void voiceLog(turn).then((r) => {
+          if (r.done && geminiRef.current === gv) gv.whenQuiet(() => (stopAll(), router.push("/onboarding/marca")));
+        });
+      },
+      onClosed: (reason) => {
+        if (geminiRef.current !== gv) return;
+        geminiRef.current = null;
+        setLive(false);
+        setSpeaking(false);
+        if (reason !== "close_requested" && voiceModeRef.current) {
+          voiceModeRef.current = false;
+          setVoiceMode(false);
+          setHint("Se cortó la conversación por voz. Toca «Conversar por voz» para seguir.");
+        }
+      },
+    });
+    geminiRef.current = gv;
+    try {
+      const session = await startGeminiVoice();
+      if ("error" in session) throw new Error(session.error);
+      await gv.connect(session.token, session.model, "hola");
+      if (geminiRef.current !== gv) return gv.close();
+      setLive(true);
+    } catch (error) {
+      console.error("Voz con Gemini:", error);
+      if (geminiRef.current === gv) geminiRef.current = null;
+      gv.close();
+      if (!voiceModeRef.current) return;
+      if (error instanceof DOMException && (error.name === "NotAllowedError" || error.name === "SecurityError")) {
+        voiceModeRef.current = false;
+        setVoiceMode(false);
+        setHint("Para hablar, permite el uso del micrófono en tu navegador (el ícono junto a la dirección de la página).");
+        return;
+      }
+      if (realtime) return void startRealtime(firstText);
+      const last = messages.filter((m) => m.role !== "owner").at(-1);
+      if (last) speak([last], () => voiceModeRef.current && open && listen(true));
+    } finally {
+      setConnecting(false);
+    }
+  }
+
   function onMic() {
     if (listening) {
       recorderRef.current?.stop();
@@ -513,6 +582,7 @@ export function InterviewChat({
 
   function hush() {
     rtRef.current?.stopSpeaking();
+    geminiRef.current?.stopSpeaking();
     queueRef.current = [];
     afterSpeakRef.current = null;
     audioRef.current?.pause();
