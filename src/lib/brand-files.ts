@@ -7,6 +7,7 @@ import sharp from "sharp";
 import SVGtoPDF from "svg-to-pdfkit";
 import { backdropSvg, cmykText, fontsById, kitPalette, rgbText, rulesBase, type BrandKit } from "@/lib/brand";
 import {
+  bannerArt,
   bolsaArt,
   camisetaArt,
   chatArt,
@@ -69,6 +70,14 @@ export const ITEMS: Item[] = [
   { id: "textos", label: "Textos de marca (listos para copiar y pegar)", group: "Presentación", formats: ["docx", "txt"], px: 0 },
   { id: "firma-correo", label: "Firma de correo (ábrela, cópiala y pégala en tu email)", group: "Presentación", formats: ["html"], px: 0 },
   logoItem("logo", "Logo principal", "principal", "color", ["svg", "png", "jpg", "pdf", "psd"], 2400),
+  {
+    id: "logo-horizontal",
+    label: "Logo horizontal (símbolo a la izquierda)",
+    group: "Logo",
+    formats: ["svg", "png", "pdf"],
+    px: 2400,
+    art: (c) => logoArt({ ...c.kit, layout: "clasico" }, c.name, "principal", "color", c.fonts),
+  },
   logoItem("logo-vertical", "Logo vertical", "vertical", "color", ["svg", "png", "pdf"], 1600),
   logoItem("logo-blanco", "Logo en blanco (fondos oscuros)", "principal", "blanco", ["svg", "png", "pdf"], 2400),
   logoItem("logo-un-color", "Logo a un color", "principal", "mono", ["svg", "png", "pdf"], 2400),
@@ -388,6 +397,7 @@ export async function bookPage(c: BrandCtx, n: number) {
 // blanco, íconos web y Photoshop, con nombres claros (Negocio_Logo_Principal_Color_1200px.png).
 const LOGO_NAMES: Record<string, string> = {
   logo: "Logo_Principal_Color",
+  "logo-horizontal": "Logo_Horizontal_Color",
   "logo-vertical": "Logo_Vertical_Color",
   "logo-blanco": "Logo_Principal_Blanco",
   "logo-un-color": "Logo_Principal_UnColor",
@@ -435,6 +445,8 @@ Logo/02 PNG transparente .. Para usar sobre fotos o colores: 300 px (correo y we
 Logo/03 JPG fondo blanco .. Para documentos, Word y donde no se acepta transparencia.
 Logo/04 Iconos web ........ favicon.ico y los íconos para celular (apple-touch-icon, android-chrome) de tu página web.
 Logo/05 Photoshop ......... PSD por capas.
+Listo para usar ........... Una carpeta por red (Facebook, Instagram, WhatsApp, TikTok, Google, LinkedIn, YouTube, X) y correo,
+                            con cada imagen en el tamaño exacto: solo súbela.
 Presentación .............. Manual de marca, tablero, textos de marca (para copiar y pegar) y firma de correo.
 Redes sociales ............ Foto de perfil, portada, publicación e historia (PNG, JPG y PSD).
 Papelería ................. Tarjeta, hoja membretada (PDF y Word), cotización y volante para imprenta.
@@ -444,16 +456,58 @@ Colores y patrón .......... Paleta (HEX, RGB, CMYK y Adobe .ase) y fondos de ma
 Hecho con Orbusiness.
 `;
 
+// "Listo para usar": cada red con su archivo en el tamaño exacto, para subirlo tal cual.
+async function readyToUse(c: BrandCtx): Promise<[string, Art, number][]> {
+  const [perfil, portada, post, story, horizontal] = await Promise.all([
+    perfilArt(c),
+    portadaArt(c),
+    publicacionArt(c),
+    historiaArt(c),
+    logoArt({ ...c.kit, layout: "clasico" }, c.name, "principal", "color", c.fonts),
+  ]);
+  const [linkedin, youtube, x, google] = await Promise.all([
+    bannerArt(c, 1584, 396, 1080, 396, 480),
+    bannerArt(c, 2560, 1440, 1546, 423),
+    bannerArt(c, 1500, 500),
+    bannerArt(c, 1080, 608),
+  ]);
+  return [
+    ["Facebook/Foto de perfil (720x720).png", perfil, 720],
+    ["Facebook/Portada (1640x624).png", portada, 1640],
+    ["Facebook/Publicación (1080x1080).png", post, 1080],
+    ["Facebook/Historia (1080x1920).png", story, 1080],
+    ["Instagram/Foto de perfil (1080x1080).png", perfil, 1080],
+    ["Instagram/Publicación (1080x1080).png", post, 1080],
+    ["Instagram/Historia (1080x1920).png", story, 1080],
+    ["WhatsApp Business/Foto de perfil (640x640).png", perfil, 640],
+    ["WhatsApp Business/Estado (1080x1920).png", story, 1080],
+    ["TikTok/Foto de perfil (720x720).png", perfil, 720],
+    ["Google (Perfil de negocio)/Logo (720x720).png", perfil, 720],
+    ["Google (Perfil de negocio)/Portada (1080x608).png", google, 1080],
+    ["LinkedIn/Foto de perfil (400x400).png", perfil, 400],
+    ["LinkedIn/Portada (1584x396).png", linkedin, 1584],
+    ["YouTube/Foto de perfil (800x800).png", perfil, 800],
+    ["YouTube/Portada (2560x1440).png", youtube, 2560],
+    ["X (Twitter)/Foto de perfil (400x400).png", perfil, 400],
+    ["X (Twitter)/Portada (1500x500).png", x, 1500],
+    ["Correo/Logo para la firma (320px).png", horizontal, 320],
+  ];
+}
+
 // Todo el kit en un .zip, ordenado en carpetas.
 export async function brandZip(c: BrandCtx) {
   const files: Record<string, Uint8Array> = {};
   const brand = fileBrand(c.name);
   const add = (path: string, data: Buffer | string) => (files[path] = new Uint8Array(typeof data === "string" ? Buffer.from(data) : data));
   add("LEEME.txt", README(c.name));
+  const seen = new Set<string>(); // si el horizontal o el vertical salen igual al principal, no se repiten
   for (const item of ITEMS) {
     const logoName = LOGO_NAMES[item.id];
     if (logoName) {
       const art = first(await item.art!(c));
+      const svg = artSvg(art);
+      if (seen.has(svg)) continue;
+      seen.add(svg);
       const n = `${brand}_${logoName}`;
       add(`Logo/01 Vector/${n}.svg`, artSvg(art));
       add(`Logo/01 Vector/${n}.pdf`, await toPdf([art], `${item.label} · ${c.name}`, 3));
@@ -476,5 +530,6 @@ export async function brandZip(c: BrandCtx) {
     }
     for (const format of item.formats) add(`${item.group}/${brand}_${item.id}.${format}`, (await brandFile(c, item, format)).data);
   }
+  for (const [path, art, px] of await readyToUse(c)) add(`Listo para usar/${path}`, await toPng(art, px));
   return { data: Buffer.from(zipSync(files, { level: 6 })), type: MIME.zip };
 }

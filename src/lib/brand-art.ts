@@ -94,6 +94,30 @@ export async function portadaArt(c: BrandCtx): Promise<Art> {
   };
 }
 
+// Portada para cualquier red (LinkedIn, X, YouTube, Google...): el logo y, si cabe, el eslogan,
+// dentro de la zona segura (YouTube recorta los lados según la pantalla; en LinkedIn la foto de
+// perfil tapa la esquina izquierda, así que ahí la zona empieza más a la derecha: safeX).
+export async function bannerArt(c: BrandCtx, W: number, H: number, safeW = W, safeH = H, safeX = (W - safeW) / 2): Promise<Art> {
+  const sx = safeX;
+  const sy = (H - safeH) / 2;
+  const wide = safeW / safeH >= 2.2; // en portadas angostas solo va el logo
+  const logoH = safeH * (wide ? 0.5 : 0.42);
+  const logoSvg = place(await logo(c, "principal", "blanco"), sx + safeW * (wide ? 0.06 : 0.15), sy + (safeH - logoH) / 2, safeW * (wide ? 0.4 : 0.7), logoH, wide ? "start" : "center").svg;
+  const size = Math.min(64, safeH * 0.13);
+  const sloganX = sx + safeW * 0.52;
+  const head = paragraphSvg(c.fonts.heading, c.kit.slogan, sloganX, 0, safeW * 0.42, size, "#FFFFFF", { maxLines: 3, lineHeight: 1.05, tracking: TITLE });
+  const top = sy + (safeH - head.height) / 2 + size * 0.45;
+  return {
+    width: W,
+    height: H,
+    layers: [
+      { name: "Fondo", svg: backdropSvg(c.kit, W, H, "oscuro") },
+      { name: "Logo", svg: logoSvg },
+      ...(wide ? [{ name: "Eslogan", svg: paragraphSvg(c.fonts.heading, c.kit.slogan, sloganX, top, safeW * 0.42, size, "#FFFFFF", { maxLines: 3, lineHeight: 1.05, tracking: TITLE }).svg }] : []),
+    ],
+  };
+}
+
 export async function publicacionArt(c: BrandCtx): Promise<Art> {
   const p = kitPalette(c.kit);
   const S = 1080;
