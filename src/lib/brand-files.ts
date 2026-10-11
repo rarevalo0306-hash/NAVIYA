@@ -9,6 +9,7 @@ import { backdropSvg, cmykText, fontsById, kitPalette, rgbText, rulesBase, type 
 import {
   bannerArt,
   bolsaArt,
+  CTA,
   destacadaArt,
   camisetaArt,
   chatArt,
@@ -447,7 +448,7 @@ Logo/03 JPG fondo blanco .. Para documentos, Word y donde no se acepta transpare
 Logo/04 Iconos web ........ favicon.ico y los íconos para celular (apple-touch-icon, android-chrome) de tu página web.
 Logo/05 Photoshop ......... PSD por capas.
 Redes sociales ............ Una carpeta por red (Facebook, Instagram, WhatsApp, TikTok, Google, LinkedIn, YouTube, X) con todas
-                            sus plantillas en el tamaño exacto, listas para subir tal cual. En "Editables (Photoshop)" está
+                            sus plantillas en el tamaño exacto y con el llamado de esa red, listas para subir tal cual. En "Editables (Photoshop)" está
                             cada diseño por capas, una sola vez, con las redes donde se usa.
 Presentación .............. Manual de marca, tablero, textos de marca (para copiar y pegar) y firma de correo (con su logo).
 Papelería ................. Tarjeta, hoja membretada (PDF y Word), cotización y volante para imprenta.
@@ -461,13 +462,19 @@ Hecho con Orbusiness.
 // también en PSD por capas para editarlas. [carpeta/nombre, arte, ancho en px, con PSD]
 type Template = [string, Art, number, boolean];
 async function socialTemplates(c: BrandCtx): Promise<Template[]> {
-  const [perfil, portada, post, postV, story, destacada] = await Promise.all([
-    perfilArt(c),
-    portadaArt(c),
-    publicacionArt(c),
-    publicacionArt(c, 1350),
-    historiaArt(c),
-    destacadaArt(c),
+  // Cada red con su llamado propio (Messenger, mensaje directo, WhatsApp, "Síguenos en TikTok"...).
+  const [perfil, portada, destacada] = await Promise.all([perfilArt(c), portadaArt(c), destacadaArt(c)]);
+  const [fbPost, fbPostV, fbStory, igPost, igPostV, igStory, igReel, waStory, waCatalog, ttCover] = await Promise.all([
+    publicacionArt(c, 1080, CTA.messenger),
+    publicacionArt(c, 1350, CTA.messenger),
+    historiaArt(c, CTA.facebook),
+    publicacionArt(c, 1080, CTA.dm),
+    publicacionArt(c, 1350, CTA.dm),
+    historiaArt(c, CTA.instagram),
+    historiaArt(c, CTA.video),
+    historiaArt(c, CTA.whatsapp),
+    publicacionArt(c, 1080, CTA.pideWhatsapp),
+    historiaArt(c, CTA.tiktok),
   ]);
   const [evento, linkedin, linkedinPost, youtube, miniatura, x, xPost, google, googlePost] = await Promise.all([
     bannerArt(c, 1920, 1005, 1920, 1005, 0, true),
@@ -483,21 +490,21 @@ async function socialTemplates(c: BrandCtx): Promise<Template[]> {
   return [
     ["Facebook/Foto de perfil (720x720)", perfil, 720, false],
     ["Facebook/Portada (1640x624)", portada, 1640, true],
-    ["Facebook/Publicación cuadrada (1080x1080)", post, 1080, true],
-    ["Facebook/Publicación vertical (1080x1350)", postV, 1080, true],
-    ["Facebook/Historia (1080x1920)", story, 1080, true],
+    ["Facebook/Publicación cuadrada (1080x1080)", fbPost, 1080, true],
+    ["Facebook/Publicación vertical (1080x1350)", fbPostV, 1080, true],
+    ["Facebook/Historia (1080x1920)", fbStory, 1080, true],
     ["Facebook/Portada de evento (1920x1005)", evento, 1920, true],
     ["Instagram/Foto de perfil (1080x1080)", perfil, 1080, false],
-    ["Instagram/Publicación cuadrada (1080x1080)", post, 1080, true],
-    ["Instagram/Publicación vertical (1080x1350)", postV, 1080, true],
-    ["Instagram/Historia (1080x1920)", story, 1080, true],
-    ["Instagram/Portada de Reel (1080x1920)", story, 1080, true],
+    ["Instagram/Publicación cuadrada (1080x1080)", igPost, 1080, true],
+    ["Instagram/Publicación vertical (1080x1350)", igPostV, 1080, true],
+    ["Instagram/Historia (1080x1920)", igStory, 1080, true],
+    ["Instagram/Portada de Reel (1080x1920)", igReel, 1080, true],
     ["Instagram/Portada de historias destacadas (1080x1920)", destacada, 1080, true],
     ["WhatsApp Business/Foto de perfil (640x640)", perfil, 640, false],
-    ["WhatsApp Business/Estado (1080x1920)", story, 1080, true],
-    ["WhatsApp Business/Imagen para el catálogo (1080x1080)", post, 1080, true],
+    ["WhatsApp Business/Estado (1080x1920)", waStory, 1080, true],
+    ["WhatsApp Business/Imagen para el catálogo (1080x1080)", waCatalog, 1080, true],
     ["TikTok/Foto de perfil (720x720)", perfil, 720, false],
-    ["TikTok/Portada de video (1080x1920)", story, 1080, true],
+    ["TikTok/Portada de video (1080x1920)", ttCover, 1080, true],
     ["Google (Perfil de negocio)/Logo (720x720)", perfil, 720, false],
     ["Google (Perfil de negocio)/Portada (1080x608)", google, 1080, true],
     ["Google (Perfil de negocio)/Publicación (1200x900)", googlePost, 1200, true],

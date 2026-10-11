@@ -119,6 +119,20 @@ export async function bannerArt(c: BrandCtx, W: number, H: number, safeW = W, sa
   };
 }
 
+// Llamados a la acción de cada red, en el trato del negocio (tú, usted o vos).
+export type Cta = { tu: string; usted: string; vos: string };
+export const CTA = {
+  escribenos: { tu: "Escríbenos", usted: "Escríbanos", vos: "Escribinos" },
+  whatsapp: { tu: "Escríbenos por WhatsApp", usted: "Escríbanos por WhatsApp", vos: "Escribinos por WhatsApp" },
+  pideWhatsapp: { tu: "Pídelo por WhatsApp", usted: "Pídalo por WhatsApp", vos: "Pedilo por WhatsApp" },
+  messenger: { tu: "Escríbenos por Messenger", usted: "Escríbanos por Messenger", vos: "Escribinos por Messenger" },
+  dm: { tu: "Escríbenos por mensaje directo", usted: "Escríbanos por mensaje directo", vos: "Escribinos por mensaje directo" },
+  facebook: { tu: "Síguenos en Facebook", usted: "Síganos en Facebook", vos: "Seguinos en Facebook" },
+  instagram: { tu: "Síguenos en Instagram", usted: "Síganos en Instagram", vos: "Seguinos en Instagram" },
+  tiktok: { tu: "Síguenos en TikTok", usted: "Síganos en TikTok", vos: "Seguinos en TikTok" },
+  video: { tu: "Mira el video completo", usted: "Mire el video completo", vos: "Mirá el video completo" },
+} satisfies Record<string, Cta>;
+
 // Portada de historia destacada de Instagram: solo el símbolo al centro (Instagram la muestra en círculo).
 export async function destacadaArt(c: BrandCtx): Promise<Art> {
   const W = 1080;
@@ -134,10 +148,13 @@ export async function destacadaArt(c: BrandCtx): Promise<Art> {
 }
 
 // Publicación cuadrada (1080x1080) o vertical (1080x1350): lo de abajo se acomoda al alto.
-export async function publicacionArt(c: BrandCtx, H = 1080): Promise<Art> {
+export async function publicacionArt(c: BrandCtx, H = 1080, call: Cta = CTA.escribenos): Promise<Art> {
   const p = kitPalette(c.kit);
   const S = 1080;
-  const cta = t3(c, { tu: "Escríbenos", usted: "Escríbanos", vos: "Escribinos" });
+  const cta = t3(c, call);
+  // Si el llamado con el teléfono no cabe antes de la flecha, va solo el llamado.
+  const withPhone = c.phone ? `${cta}  ·  ${c.phone}` : cta;
+  const contact = measure(c.fonts.body, withPhone, 32) <= 760 ? withPhone : cta;
   return {
     width: S,
     height: H,
@@ -155,18 +172,18 @@ export async function publicacionArt(c: BrandCtx, H = 1080): Promise<Art> {
         name: "Contacto",
         svg:
           rect(90, H - 180, 900, 100, "#FFFFFF", 50, ` fill-opacity="0.9"`) +
-          textSvg(c.fonts.body, c.phone ? `${cta}  ·  ${c.phone}` : cta, 140, H - 130 + (capRatio(c.fonts.body) * 32) / 2, 32, p.dark) +
+          textSvg(c.fonts.body, contact, 140, H - 130 + (capRatio(c.fonts.body) * 32) / 2, 32, p.dark) +
           arrow(940, H - 130, 38, p.primary, onColor(p.primary, p.dark)),
       },
     ],
   };
 }
 
-export async function historiaArt(c: BrandCtx): Promise<Art> {
+export async function historiaArt(c: BrandCtx, call: Cta = CTA.whatsapp): Promise<Art> {
   const p = kitPalette(c.kit);
   const W = 1080;
   const H = 1920;
-  const cta = t3(c, { tu: "Escríbenos por WhatsApp", usted: "Escríbanos por WhatsApp", vos: "Escribinos por WhatsApp" });
+  const cta = t3(c, call);
   return {
     width: W,
     height: H,
