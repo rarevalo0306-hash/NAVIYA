@@ -39,6 +39,7 @@ export function NunaCompanion({ tips, voice }: { tips: Record<string, string>; v
   const [connecting, setConnecting] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [listening, setListening] = useState(false);
+  const [muted, setMuted] = useState(false); // micrófono en silencio mientras platican por voz
   const [error, setError] = useState<string | null>(null);
   const voiceRef = useRef<OpenAIAgentVoice | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -81,7 +82,7 @@ export function NunaCompanion({ tips, voice }: { tips: Record<string, string>; v
 
   if (!tip) return null;
 
-  const state: NunaState = connecting || pending ? "thinking" : speaking ? "speaking" : listening ? "listening" : "idle";
+  const state: NunaState = connecting || pending ? "thinking" : speaking ? "speaking" : listening && !muted ? "listening" : "idle";
 
   // Dónde va: sin medir la pantalla todavía, abajo al centro. Nunca se sale de la pantalla.
   const half = minimized ? 40 : open ? Math.min(224, screen.w / 2 - 8) : tipShown ? Math.min(200, screen.w / 2 - 8) : 90;
@@ -176,6 +177,7 @@ export function NunaCompanion({ tips, voice }: { tips: Record<string, string>; v
         setLive(false);
         setSpeaking(false);
         setListening(false);
+        setMuted(false);
       },
     });
     voiceRef.current = v;
@@ -326,6 +328,28 @@ export function NunaCompanion({ tips, voice }: { tips: Record<string, string>; v
                   <path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4" />
                 </svg>
               )}
+            </button>
+          </>
+        )}
+        {live && (
+          <>
+            <span aria-hidden className="mx-1 h-7 w-px bg-line" />
+            <button
+              type="button"
+              onClick={() => {
+                voiceRef.current?.setMuted(!muted);
+                setMuted(!muted);
+              }}
+              aria-pressed={muted}
+              aria-label={muted ? "Activar mi micrófono" : "Silenciar mi micrófono"}
+              title={muted ? "Activar mi micrófono" : "Silenciar mi micrófono"}
+              className={`flex size-12 items-center justify-center rounded-full transition active:scale-95 ${muted ? "bg-bone text-ink" : "text-bone hover:bg-panel-2"}`}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-6" aria-hidden>
+                <rect x="9" y="2" width="6" height="12" rx="3" />
+                <path d="M5 10a7 7 0 0 0 14 0M12 17v5" />
+                {muted && <path d="M3 3l18 18" />}
+              </svg>
             </button>
           </>
         )}
