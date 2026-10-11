@@ -50,6 +50,7 @@ export type Database = {
           brand_purchased_at: string | null;
           onboarding_step: string;
           status: string;
+          nuna_replies: boolean;
           created_at: string;
           updated_at: string;
         },
@@ -82,6 +83,7 @@ export type Database = {
           brand_purchased_at?: string | null;
           onboarding_step?: string;
           status?: string;
+          nuna_replies?: boolean;
         }
       >;
       memberships: Table<
@@ -218,7 +220,7 @@ export type Database = {
           last_message_at: string;
           created_at: string;
         },
-        { business_id: string; contact_id?: string | null; channel: string; status?: string }
+        { business_id: string; contact_id?: string | null; channel: string; status?: string; last_message_at?: string }
       >;
       messages: Table<
         {
@@ -229,6 +231,7 @@ export type Database = {
           author: string;
           channel: string;
           body: string;
+          external_id: string | null;
           created_at: string;
         },
         {
@@ -238,6 +241,7 @@ export type Database = {
           author: string;
           channel: string;
           body: string;
+          external_id?: string | null;
         }
       >;
       audit_log: Table<
@@ -278,6 +282,7 @@ export type Database = {
         },
         { business_id: string; kind: string; items: Json; currency: string; contact_id?: string | null; status?: string; total?: number | null; note?: string | null; updated_at?: string }
       >;
+      whatsapp_lines: Table<{ number: string; business_id: string; created_at: string }, { number: string; business_id: string }>;
     };
     Views: { [_ in never]: never };
     Functions: {
