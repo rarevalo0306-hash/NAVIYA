@@ -168,7 +168,8 @@ export class GeminiVoice {
     for (const call of m.toolCall?.functionCalls ?? []) {
       const response = await this.events.onTool(call.name ?? "", call.args ?? {}).catch(() => ({ error: "No se pudo guardar" }));
       this.session?.sendToolResponse({
-        functionResponses: [{ id: call.id, name: call.name, response, scheduling: FunctionResponseScheduling.SILENT }],
+        // WHEN_IDLE: si se quedó callada esperando lo que anotó, sigue hablando (con SILENT se quedaba muda).
+        functionResponses: [{ id: call.id, name: call.name, response, scheduling: FunctionResponseScheduling.WHEN_IDLE }],
       });
     }
     if (m.goAway) this.close("go_away");

@@ -39,6 +39,7 @@ export const ORBUSINESS_PITCH =
   "2) su página web lista para celular, con un formulario que manda los clientes interesados directo al CRM; " +
   "3) un CRM a la medida de cómo trabaja (clientes, cotizaciones, seguimiento); " +
   "4) Nuna como asistente: responde a los clientes por WhatsApp, manda cotizaciones, da seguimiento, agenda y ayuda a cobrar. " +
+  "Hay planes solo de texto (Nuna atiende por mensajes) y planes con voz (además puede hablar); no prometas voz sin aclarar que depende del plan. " +
   "La entrevista sirve para conocer al dueño y su negocio y armar todo eso con sus datos reales; dura unos 5 minutos.";
 
 // Trato con el dueño durante la entrevista: el habitual de su país (antes de saber el país, tú).
@@ -102,7 +103,7 @@ export const QUESTIONS: Question[] = [
     text: () =>
       "¡Hola! ¿Cómo estás? Soy Nuna, tu asistente en Orbusiness, y estoy aquí para conocerte a ti y a tu negocio. " +
       "Con lo que me cuentes te armo todo: tu marca, tu página web y un sistema para atender a tus clientes. " +
-      "Y después me quedo contigo: les respondo por WhatsApp, mando cotizaciones y les doy seguimiento, para que tú te enfoques en tu negocio. " +
+      "Y después me quedo contigo como tu asistente: atiendo a tus clientes por mensaje o por voz, según el plan que elijas, mando cotizaciones y les doy seguimiento, para que tú te enfoques en tu negocio. " +
       "Es una plática de unos 5 minutos y puedes escribirme o hablarme. Para empezar, ¿cómo te llamas?",
     hint: () => "El nombre de pila del dueño o representante (puede venir con saludo, por ejemplo 'bien, gracias, soy Ricardo').",
   },

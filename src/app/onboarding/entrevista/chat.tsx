@@ -505,7 +505,10 @@ export function InterviewChat({
         if (name !== "anotar") return { error: "Herramienta desconocida" };
         const r = await voiceSave(args, keys);
         keys = [...keys, ...r.filled];
-        return { faltan: r.missing.length ? r.missing : "Nada. Pregúntale si quiere agregar algo más." };
+        return {
+          faltan: r.missing.length ? r.missing : "Nada. Pregúntale si quiere agregar algo más.",
+          nota: "Si ya hiciste tu siguiente pregunta, no digas nada más; si no, sigue la plática con lo que falta.",
+        };
       },
       onTurn: (owner, said) => {
         const turn = { owner, nuna: said, keys, end: ending };
