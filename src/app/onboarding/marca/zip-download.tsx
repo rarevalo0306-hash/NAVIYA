@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-// Armar el .zip del kit tarda unos 15 segundos: mientras, el botón avisa que se está preparando
+// Armar el .zip del kit tarda unos 25 segundos: mientras, el botón avisa que se está preparando
 // (con un enlace normal parecía que no pasaba nada).
 export function ZipDownload({ href, filename }: { href: string; filename: string }) {
   const [state, setState] = useState<"idle" | "busy" | "error">("idle");
@@ -34,7 +34,7 @@ export function ZipDownload({ href, filename }: { href: string; filename: string
         disabled={state === "busy"}
       >
         {state === "busy" && <span aria-hidden className="size-4 rounded-full border-2 border-lime-ink/30 border-t-lime-ink motion-safe:animate-spin" />}
-        {state === "busy" ? "Preparando tu kit… (unos 15 segundos)" : "Descargar todo (.zip)"}
+        {state === "busy" ? "Preparando tu kit… (unos 30 segundos)" : "Descargar todo (.zip)"}
       </button>
       {state === "error" && (
         <span role="alert" className="text-sm text-muted">
