@@ -11,6 +11,7 @@ import { askNuna, startCompanionVoice } from "./companion-actions";
 
 type Msg = { role: "owner" | "nuna"; text: string };
 const MIN_KEY = "orbusiness:nuna-minimizada";
+const POS_KEY = "orbusiness:nuna-posicion"; // dónde la dejó el dueño, en fracción de la pantalla
 const TIP_KEY = (step: string) => `orbusiness:nuna-tip:${step}`;
 const read = (key: string) => {
   try {
@@ -41,11 +42,20 @@ export function NunaCompanion({ tips, voice }: { tips: Record<string, string>; v
   const [error, setError] = useState<string | null>(null);
   const voiceRef = useRef<OpenAIAgentVoice | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  // Se arrastra desde su logo a cualquier parte de la pantalla. pos = punto donde queda la barra (fracción de la pantalla).
+  const [pos, setPos] = useState({ fx: 0.5, fy: 1 });
+  const [screen, setScreen] = useState({ w: 0, h: 0 });
+  const drag = useRef<{ sx: number; sy: number; x: number; y: number; moved: boolean } | null>(null);
+  const dragged = useRef(false); // si se arrastró, el toque no abre el chat
 
   // Lo guardado del navegador solo se puede leer ya montado.
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect -- depende del navegador, solo se sabe ya montado */
     setMinimized(read(MIN_KEY) === "1");
+    try {
+      const saved = JSON.parse(read(POS_KEY) ?? "null") as { fx?: unknown; fy?: unknown } | null;
+      if (typeof saved?.fx === "number" && typeof saved?.fy === "number") setPos({ fx: saved.fx, fy: saved.fy });
+    } catch {}
     setTipShown(Boolean(tip) && read(TIP_KEY(step)) !== "1");
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [step, tip]);
@@ -62,9 +72,54 @@ export function NunaCompanion({ tips, voice }: { tips: Record<string, string>; v
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
   }, [messages.length, open]);
 
+  useEffect(() => {
+    const measure = () => setScreen({ w: window.innerWidth, h: window.innerHeight });
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
+
   if (!tip) return null;
 
   const state: NunaState = connecting || pending ? "thinking" : speaking ? "speaking" : listening ? "listening" : "idle";
+
+  // Dónde va: sin medir la pantalla todavía, abajo al centro. Nunca se sale de la pantalla.
+  const half = minimized ? 40 : open ? Math.min(224, screen.w / 2 - 8) : tipShown ? Math.min(200, screen.w / 2 - 8) : 90;
+  const x = Math.min(Math.max(pos.fx * screen.w, half + 8), screen.w - half - 8);
+  const y = Math.min(Math.max(pos.fy * screen.h, 80), screen.h - 12);
+  const below = y < screen.h * 0.45; // en la mitad de arriba, el chat se abre hacia abajo
+  const place = screen.w
+    ? { left: x, top: below ? y - 60 : y, transform: below ? "translate(-50%, 0)" : "translate(-50%, -100%)" }
+    : { left: "50%", bottom: 12, transform: "translateX(-50%)" };
+
+  const dragHandlers = {
+    onPointerDown: (e: React.PointerEvent) => {
+      drag.current = { sx: e.clientX, sy: e.clientY, x, y, moved: false };
+      e.currentTarget.setPointerCapture(e.pointerId);
+    },
+    onPointerMove: (e: React.PointerEvent) => {
+      const d = drag.current;
+      if (!d || !screen.w) return;
+      const dx = e.clientX - d.sx;
+      const dy = e.clientY - d.sy;
+      if (!d.moved && Math.hypot(dx, dy) < 6) return;
+      d.moved = true;
+      setPos({ fx: (d.x + dx) / screen.w, fy: (d.y + dy) / screen.h });
+    },
+    onPointerUp: (e: React.PointerEvent) => {
+      const d = drag.current;
+      drag.current = null;
+      if (!d?.moved) return;
+      dragged.current = true;
+      write(POS_KEY, JSON.stringify({ fx: (d.x + e.clientX - d.sx) / screen.w, fy: (d.y + e.clientY - d.sy) / screen.h }));
+    },
+  };
+  // Un arrastre termina con un "clic": ese no cuenta.
+  const tapped = () => {
+    if (!dragged.current) return true;
+    dragged.current = false;
+    return false;
+  };
 
   function closeTip() {
     setTipShown(false);
@@ -146,16 +201,19 @@ export function NunaCompanion({ tips, voice }: { tips: Record<string, string>; v
     return (
       <button
         type="button"
-        onClick={() => minimize(false)}
+        {...dragHandlers}
+        onClick={() => tapped() && minimize(false)}
         aria-label="Abrir a Nuna"
-        className="fixed bottom-4 right-4 z-40 rounded-full transition hover:scale-105 active:scale-95"
+        title="Toca para abrir a Nuna; arrástrala para moverla"
+        style={place}
+        className="fixed z-40 touch-none rounded-full"
       >
         <NunaMark size={64} state={state} />
       </button>
     );
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-3 z-40 flex flex-col items-center gap-2 px-4">
+    <div style={place} className={`pointer-events-none fixed z-40 flex w-[min(28rem,calc(100vw-1rem))] items-center gap-2 ${below ? "flex-col-reverse" : "flex-col"}`}>
       {open && (
         <section
           aria-label="Plática con Nuna"
@@ -221,7 +279,14 @@ export function NunaCompanion({ tips, voice }: { tips: Record<string, string>; v
         </p>
       )}
 
-      <button type="button" onClick={openChat} aria-label={open ? "Cerrar la plática con Nuna" : "Platicar con Nuna"} className="pointer-events-auto -mb-1 rounded-full">
+      <button
+        type="button"
+        {...dragHandlers}
+        onClick={() => tapped() && openChat()}
+        aria-label={open ? "Cerrar la plática con Nuna" : "Platicar con Nuna"}
+        title="Toca para platicar; arrástrala para moverla a cualquier parte"
+        className="pointer-events-auto -my-1 cursor-grab touch-none rounded-full active:cursor-grabbing"
+      >
         <NunaMark size={open ? 60 : 84} state={state} />
       </button>
       <div className="pointer-events-auto flex items-center rounded-full border border-white/[0.08] bg-panel px-2 py-1.5 shadow-xl shadow-black/40">
