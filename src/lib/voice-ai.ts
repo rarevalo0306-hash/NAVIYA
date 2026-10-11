@@ -147,7 +147,9 @@ export function realtimeAgentSecret(opts: { instructions: string; tools: { name:
     audio: {
       input: {
         transcription: transcription(opts.prompt),
-        turn_detection: { type: "semantic_vad", create_response: true, interrupt_response: true, eagerness: "medium" },
+        // Contestar e interrumpirla lo decide el navegador: solo cuando lo que oyó son palabras de verdad
+        // (si contesta sola, el ruido de fondo la hacía hablar y cortarse).
+        turn_detection: { type: "semantic_vad", create_response: false, interrupt_response: false, eagerness: "medium" },
         noise_reduction: { type: "near_field" },
       },
       output: { voice: REALTIME_VOICE() },

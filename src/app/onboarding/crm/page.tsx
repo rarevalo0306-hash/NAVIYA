@@ -4,8 +4,9 @@ import { requireBusiness } from "@/lib/business";
 import { fieldsFor, stagesFor } from "@/lib/crm";
 import { createCrm } from "./actions";
 
-export default async function CrmSetupPage() {
+export default async function CrmSetupPage(props: PageProps<"/onboarding/crm">) {
   const { supabase, business } = await requireBusiness();
+  const query = await props.searchParams;
   if (["interview", "brand", "website"].includes(business.onboarding_step)) redirect("/onboarding/web");
 
   const stages = stagesFor(business);
@@ -21,6 +22,12 @@ export default async function CrmSetupPage() {
         title={`Un CRM a la medida de cómo trabajas${business.owner_name ? `, ${business.owner_name}` : ""}`}
         lead="Nuna convirtió lo que le contaste en etapas y tareas. Si algo no cuadra, corrige tu respuesta en la entrevista y vuelve aquí."
       />
+
+      {query.publicada && (
+        <p role="status" className="text-lime">
+          ¡Tu página quedó publicada! Ahora armamos tu CRM.
+        </p>
+      )}
 
       <Card className="flex flex-col gap-4">
         <h2 className="font-semibold">El camino de tus clientes</h2>

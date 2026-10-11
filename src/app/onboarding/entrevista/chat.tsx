@@ -14,11 +14,21 @@ type Message = { id: string; role: string; content: string; step_key?: string | 
 
 const VOICE_KEY = "orbusiness:voz-entrevista";
 
-function MicIcon({ className = "size-5" }: { className?: string }) {
+function MicIcon({ className = "size-5", off = false }: { className?: string; off?: boolean }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
       <rect x="9" y="2" width="6" height="12" rx="3" />
       <path d="M5 10a7 7 0 0 0 14 0M12 17v5" />
+      {off && <path d="M3 3l18 18" />}
+    </svg>
+  );
+}
+
+// Ondas de voz (el botón para hablar con Nuna, como en ChatGPT).
+function WaveIcon({ className = "size-6" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" className={className} aria-hidden>
+      <path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4" />
     </svg>
   );
 }
@@ -99,6 +109,7 @@ export function InterviewChat({
   const rtRef = useRef<RealtimeVoice | null>(null); // conversación en tiempo real
   const geminiRef = useRef<GeminiVoice | OpenAIAgentVoice | null>(null); // la IA de voz lleva la plática
   const [live, setLive] = useState(false);
+  const [muted, setMuted] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const pendingRef = useRef(false);
   const leaveRef = useRef<(() => void) | null>(null); // pasar al siguiente paso cuando Nuna termine de hablar
@@ -155,6 +166,7 @@ export function InterviewChat({
     if (canSpeak()) window.speechSynthesis.cancel();
     setListening(false);
     setSpeaking(false);
+    setMuted(false);
     setLevel(0);
   }, []);
 
@@ -514,7 +526,7 @@ export function InterviewChat({
       },
       onTurn: (owner, said) => {
         const turn = { owner, nuna: said, keys, end: ending };
-        keys = [];
+        if (owner) keys = []; // lo anotado se marca en el mensaje del dueño (si aún no hay, espera al siguiente)
         void voiceLog(turn).then((r) => {
           if (r.done && geminiRef.current === gv) gv.whenQuiet(() => (stopAll(), router.push("/onboarding/marca")));
         });
@@ -626,63 +638,80 @@ export function InterviewChat({
         )}
       </div>
 
+      {/* Voz como en ChatGPT: un botón al centro para empezar; ya conversando, el círculo al centro
+          (tocarlo calla a Nuna o, en el modo por partes, empieza/termina de escuchar) y abajo micrófono y terminar. */}
       {open && voiceReady && !voiceMode && (
-        <button
-          type="button"
-          onClick={toggleVoiceMode}
-          className="flex w-full items-center gap-4 rounded-[24px] border border-lime/40 bg-lime/10 p-4 text-left transition hover:bg-lime/15 active:scale-[0.99] sm:p-5"
-        >
-          <span className="relative flex size-14 shrink-0 items-center justify-center rounded-full bg-lime text-lime-ink">
+        <div className="flex flex-col items-center gap-2 py-1">
+          <button
+            type="button"
+            onClick={toggleVoiceMode}
+            aria-label="Hablar con Nuna por voz"
+            className="relative flex size-16 items-center justify-center rounded-full bg-lime text-lime-ink shadow-lg shadow-lime/20 transition hover:brightness-110 active:scale-95"
+          >
             <span aria-hidden className="absolute inset-0 rounded-full bg-lime/40 motion-safe:animate-ping [animation-duration:2.5s]" />
-            <MicIcon className="relative size-6" />
-          </span>
-          <span className="flex flex-col gap-0.5">
-            <span className="text-lg font-semibold">Conversar por voz con Nuna</span>
-            <span className="text-sm text-muted">Ella te pregunta y tú contestas hablando, como una llamada.</span>
-          </span>
-        </button>
+            <WaveIcon className="relative size-7" />
+          </button>
+          <span className="text-sm font-semibold">Hablar con Nuna</span>
+        </div>
       )}
 
       {open && voiceMode && (
-        <div className="flex flex-wrap items-center gap-4 rounded-[24px] border border-lime/40 bg-panel p-4 sm:p-5">
-          {/* En tiempo real escucha sola; en el respaldo, tocar el círculo termina o empieza a escuchar. */}
+        <div className="flex flex-col items-center gap-4 rounded-[28px] border border-white/[0.06] bg-panel px-5 py-6">
           <button
             type="button"
-            onClick={onMic}
-            disabled={live || speaking || busy}
-            aria-label={listening ? "Terminé de hablar" : "Responder hablando"}
-            className={`relative flex size-14 shrink-0 items-center justify-center rounded-full transition disabled:cursor-default ${
-              listening && !speaking ? "bg-red-500 text-white" : "bg-lime text-lime-ink"
+            onClick={speaking ? hush : onMic}
+            disabled={!speaking && (live || busy)}
+            aria-label={speaking ? "Callar a Nuna" : listening ? "Terminé de hablar" : "Responder hablando"}
+            className={`relative flex size-28 items-center justify-center rounded-full transition disabled:cursor-default ${
+              listening && !speaking && !muted ? "bg-red-500 text-white" : "bg-lime text-lime-ink"
             }`}
-            style={listening && !speaking ? { boxShadow: `0 0 0 ${4 + level * 12}px rgb(239 68 68 / 0.25)` } : undefined}
+            style={listening && !speaking && !muted ? { boxShadow: `0 0 0 ${6 + level * 16}px rgb(239 68 68 / 0.2)` } : undefined}
           >
             {speaking ? (
-              <span className="flex h-6 items-center gap-1">
-                {[0, 1, 2, 3].map((i) => (
-                  <span key={i} className="eq-bar h-full w-1.5 rounded-full bg-lime-ink" style={{ animationDelay: `${i * 0.15}s` }} />
+              <span className="flex h-10 items-center gap-1.5">
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <span key={i} className="eq-bar h-full w-2 rounded-full bg-lime-ink" style={{ animationDelay: `${i * 0.12}s` }} />
                 ))}
               </span>
             ) : busy ? (
-              <span className="size-6 rounded-full border-2 border-lime-ink/30 border-t-lime-ink motion-safe:animate-spin" />
+              <span className="size-9 rounded-full border-[3px] border-lime-ink/30 border-t-lime-ink motion-safe:animate-spin" />
             ) : (
               <>
-                {!listening && <span className="absolute inset-0 rounded-full bg-lime/40 motion-safe:animate-ping [animation-duration:2s]" />}
-                <MicIcon className="relative size-6" />
+                {!listening && <span aria-hidden className="absolute inset-0 rounded-full bg-lime/40 motion-safe:animate-ping [animation-duration:2.5s]" />}
+                <Fish size={44} className="relative" />
               </>
             )}
           </button>
-          <div className="min-w-0 flex-1" role="status">
-            <p className="font-semibold">{title}</p>
-            <p className="text-sm text-muted">{status}</p>
+          <div className="text-center" role="status">
+            <p className="font-semibold">{muted ? "Micrófono en silencio" : title}</p>
+            <p className="text-sm text-muted">{muted ? "Toca el micrófono para que Nuna te escuche." : status}</p>
           </div>
-          <div className="flex gap-2">
-            {speaking && (
-              <button type="button" onClick={hush} className="min-h-11 rounded-full border border-line px-4 text-sm hover:bg-panel-2">
-                Callar
+          <div className="flex items-center gap-4">
+            {live && (
+              <button
+                type="button"
+                onClick={() => {
+                  geminiRef.current?.setMuted(!muted);
+                  setMuted(!muted);
+                }}
+                aria-pressed={muted}
+                aria-label={muted ? "Activar micrófono" : "Silenciar micrófono"}
+                className={`flex size-14 items-center justify-center rounded-full transition active:scale-95 ${
+                  muted ? "bg-bone text-ink" : "bg-panel-2 text-bone hover:brightness-125"
+                }`}
+              >
+                <MicIcon className="size-6" off={muted} />
               </button>
             )}
-            <button type="button" onClick={toggleVoiceMode} className="min-h-11 rounded-full border border-line px-4 text-sm text-muted hover:bg-panel-2 hover:text-bone">
-              Terminar
+            <button
+              type="button"
+              onClick={toggleVoiceMode}
+              aria-label="Terminar conversación por voz"
+              className="flex size-14 items-center justify-center rounded-full bg-red-500 text-white transition hover:brightness-110 active:scale-95"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" className="size-6" aria-hidden>
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
             </button>
           </div>
         </div>

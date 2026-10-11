@@ -44,7 +44,8 @@ export async function publishWebsite() {
   });
   revalidatePath("/onboarding", "layout");
   revalidatePath(`/sitio/${subdomain}`);
-  redirect("/onboarding/web?publicada=1");
+  // La primera vez sigue solo al siguiente paso (CRM); si ya iba más adelante, se queda aquí.
+  redirect(business.onboarding_step === "website" ? "/onboarding/crm?publicada=1" : "/onboarding/web?publicada=1");
 }
 
 // El dueño elige el diseño de su página. Si ya está publicada, se actualiza al momento.

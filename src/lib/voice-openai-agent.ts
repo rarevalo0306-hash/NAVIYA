@@ -13,6 +13,15 @@ export class OpenAIAgentVoice {
   private said: string[] = [];
   private quiet: (() => void) | null = null;
   private closed = false;
+  private talking = false; // el dueño está hablando
+  private bargeIn: ReturnType<typeof setTimeout> | null = null;
+  private reply: ReturnType<typeof setTimeout> | null = null;
+  // Por respuesta de ella: si ya hizo su pregunta, si anotó algo, si sigue abierta y cuántas herramientas faltan.
+  private asked = false;
+  private saved = false;
+  private open = false;
+  private calls = 0;
+  private wantReply = false; // el dueño habló mientras ella seguía respondiendo: contesta al terminar
   speaking = false;
 
   // Se crea con el toque del dueño: así el navegador deja reproducir audio.
@@ -57,6 +66,11 @@ export class OpenAIAgentVoice {
     else fn();
   }
 
+  // Silenciar el micrófono (botón de micrófono, como en ChatGPT).
+  setMuted(muted: boolean) {
+    this.mic?.getTracks().forEach((t) => (t.enabled = !muted));
+  }
+
   stopSpeaking() {
     this.send({ type: "response.cancel" });
     this.send({ type: "output_audio_buffer.clear" });
@@ -65,6 +79,8 @@ export class OpenAIAgentVoice {
   close(reason = "close_requested") {
     if (this.closed) return;
     this.closed = true;
+    if (this.bargeIn) clearTimeout(this.bargeIn);
+    if (this.reply) clearTimeout(this.reply);
     this.dc?.close();
     this.pc?.close();
     this.mic?.getTracks().forEach((t) => t.stop());
@@ -72,6 +88,15 @@ export class OpenAIAgentVoice {
     this.events.onSpeaking?.(false);
     this.events.onListening?.(false);
     this.events.onClosed?.(reason);
+  }
+
+  // Después de anotar, ella sigue hablando solo si en esa respuesta todavía no hizo su pregunta.
+  private followUp() {
+    if (this.open || this.calls) return;
+    if (this.wantReply) this.wantReply = false;
+    else if (!this.saved || this.asked) return;
+    this.saved = false;
+    this.send({ type: "response.create" });
   }
 
   private send(event: Record<string, unknown>) {
@@ -87,28 +112,55 @@ export class OpenAIAgentVoice {
     }
     switch (e.type) {
       case "input_audio_buffer.speech_started":
+        this.talking = true;
+        if (this.reply) clearTimeout(this.reply);
+        // Si ella está hablando, se calla solo si el dueño sigue hablando 0.7 s (un ruido corto no la corta).
+        if (this.speaking && !this.bargeIn)
+          this.bargeIn = setTimeout(() => {
+            this.bargeIn = null;
+            if (this.talking && this.speaking) this.stopSpeaking();
+          }, 700);
         this.events.onListening?.(true);
         break;
       case "input_audio_buffer.speech_stopped":
+        this.talking = false;
+        if (this.bargeIn) clearTimeout(this.bargeIn);
+        this.bargeIn = null;
         this.events.onListening?.(false);
         break;
       case "conversation.item.input_audio_transcription.completed": {
         const text = e.transcript?.trim();
-        if (text && !isNoise(text)) this.heard.push(text);
+        if (!text || isNoise(text)) break; // ruido: no contesta
+        this.heard.push(text);
+        // Contesta cuando el dueño de verdad terminó (si sigue hablando tras una pausa, espera).
+        if (this.reply) clearTimeout(this.reply);
+        this.reply = setTimeout(() => {
+          this.reply = null;
+          if (this.talking) return;
+          if (this.open || this.calls) this.wantReply = true;
+          else this.send({ type: "response.create" });
+        }, 500);
         break;
       }
+      case "response.created":
+        this.open = true;
+        this.asked = false;
+        break;
       case "response.output_audio_transcript.done":
         if (e.transcript?.trim()) this.said.push(e.transcript.trim());
+        if (e.transcript?.includes("?")) this.asked = true;
         break;
       case "response.function_call_arguments.done": {
         let args: Record<string, unknown> = {};
         try {
           args = JSON.parse(e.arguments || "{}");
         } catch {}
+        this.calls++;
+        if (e.name === "anotar") this.saved = true;
         const output = await this.events.onTool(e.name ?? "", args).catch(() => ({ error: "No se pudo guardar" }));
         this.send({ type: "conversation.item.create", item: { type: "function_call_output", call_id: e.call_id, output: JSON.stringify(output) } });
-        // Después de anotar sigue la plática; al terminar ya se despidió, no hace falta que hable más.
-        if (e.name !== "terminar_entrevista") this.send({ type: "response.create" });
+        this.calls--;
+        this.followUp();
         break;
       }
       case "output_audio_buffer.started":
@@ -125,12 +177,14 @@ export class OpenAIAgentVoice {
         break;
       }
       case "response.done": {
+        this.open = false;
         // Fin de un turno de ella: queda escrito lo que se dijo.
         const owner = this.heard.join(" ").trim();
         const said = this.said.join(" ").trim();
         this.heard = [];
         this.said = [];
         if (owner || said) this.events.onTurn?.(owner, said);
+        this.followUp();
         break;
       }
       case "error":

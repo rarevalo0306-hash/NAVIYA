@@ -93,6 +93,11 @@ export class GeminiVoice {
     else fn();
   }
 
+  // Silenciar el micrófono (botón de micrófono, como en ChatGPT).
+  setMuted(muted: boolean) {
+    this.mic?.getTracks().forEach((t) => (t.enabled = !muted));
+  }
+
   stopSpeaking() {
     this.muted = true;
     this.stopAudio();
