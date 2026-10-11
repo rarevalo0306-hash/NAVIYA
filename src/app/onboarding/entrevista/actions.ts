@@ -412,6 +412,22 @@ export async function voiceSave(raw: unknown, turnKeys: unknown): Promise<{ fill
   return { filled, missing: missing.map((q) => askFor(q, updated)) };
 }
 
+// ¿Gemini dijo lo mismo que ya está escrito? (pasa con el saludo: ya estaba al empezar y ella lo dice en voz).
+async function repeatsLastNuna(supabase: Supabase, businessId: string, said: string) {
+  const { data } = await supabase
+    .from("interview_messages")
+    .select("content")
+    .eq("business_id", businessId)
+    .eq("role", "nuna")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const words = (t: string) => t.toLowerCase().normalize("NFD").replace(/[^a-z0-9ñ\s]/g, "").split(/\s+/).filter(Boolean);
+  const last = new Set(words(data?.content ?? ""));
+  const now = words(said);
+  return now.length > 0 && now.filter((w) => last.has(w)).length / now.length >= 0.8;
+}
+
 // Deja escrito un turno de la plática por voz. Con `end`, cierra la entrevista si ya no falta nada.
 export async function voiceLog(turn: { owner: string; nuna: string; keys: unknown; end: boolean }): Promise<{ done: boolean }> {
   const { supabase, business } = await requireBusiness();
@@ -419,7 +435,7 @@ export async function voiceLog(turn: { owner: string; nuna: string; keys: unknow
   const owner = String(turn.owner ?? "").trim().slice(0, 2000);
   const said = String(turn.nuna ?? "").trim().slice(0, 2000);
   if (owner) await supabase.from("interview_messages").insert({ business_id: business.id, role: "owner", step_key: `chat|${keys.join(",")}`, content: owner });
-  if (said) await nuna(supabase, business.id, "chat", said);
+  if (said && !(await repeatsLastNuna(supabase, business.id, said))) await nuna(supabase, business.id, "chat", said);
   let done = false;
   if (turn.end && business.onboarding_step === "interview" && !(await missingFor(supabase, business, keys)).length) {
     await finish(supabase, business);
