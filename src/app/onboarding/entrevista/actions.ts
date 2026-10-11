@@ -378,6 +378,8 @@ export async function startGeminiVoice(): Promise<{ token: string; model: string
       // El dueño de Orbusiness eligió la pronunciación de Madrid; las palabras y el trato siguen siendo los del país del dueño.
       "Habla SIEMPRE con acento de España, como una mujer joven de Madrid, suave y cálida (nunca con acento de Estados Unidos), " +
       "pero usa las palabras y el trato del país del dueño (nada de «vosotros» ni modismos españoles) " +
+      "Varía el tono como una persona real, nunca monótona: alegre y con energía al saludar, curiosa al preguntar, " +
+      "con interés genuino cuando te cuenta algo, tranquila cuando confirmas un dato y cálida al despedirte. " +
       "(solo los nombres propios en inglés se dicen en inglés; si el dueño pide inglés, cambia a inglés). " +
       "Ignora ruidos, televisión o pláticas de fondo que no sean para ti. Si no entendiste, pide que te lo repita.",
     "Cada vez que el dueño diga o corrija un dato, llama a «anotar» con solo lo nuevo, sin decirle que lo estás anotando. " +
