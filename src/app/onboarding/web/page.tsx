@@ -73,6 +73,9 @@ export default async function WebsitePage(props: PageProps<"/onboarding/web">) {
               ? `Tu página se ve mejor con 4 a 8 ${products ? "productos o categorías (por ejemplo: herramientas, pintura, plomería)" : "servicios"}. El precio es opcional.`
               : "Esto sale en tu página. El precio es opcional."}
           </p>
+          <Link href="/panel/vender" className="mt-1 inline-flex min-h-11 items-center self-start rounded-full bg-lime/15 px-4 text-sm font-semibold text-lime transition hover:bg-lime/25">
+            Agregar fotos, descripciones y más con Nuna →
+          </Link>
         </div>
         {services && services.length > 0 && (
           <ul className="flex flex-col divide-y divide-line">

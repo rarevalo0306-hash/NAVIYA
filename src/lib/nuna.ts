@@ -327,7 +327,7 @@ async function openaiJsonText(opts: { system: string; user: string; model?: stri
 }
 
 // Llama a OpenAI (Responses) y devuelve el texto. Si el modelo no acepta la opción de razonamiento, se pide sin ella.
-async function openaiText(body: Record<string, unknown>) {
+export async function openaiText(body: Record<string, unknown>) {
   const send = (b: Record<string, unknown>) =>
     fetch(`${OPENAI_BASE_URL()}/responses`, {
       method: "POST",

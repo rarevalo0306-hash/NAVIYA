@@ -109,6 +109,14 @@ export type Database = {
           active: boolean;
           sort: number;
           created_at: string;
+          kind: "product" | "service";
+          description: string | null;
+          category: string | null;
+          price_mode: "fixed" | "from" | "quote";
+          image_path: string | null;
+          image_original_path: string | null;
+          variants: Json;
+          updated_at: string;
         },
         {
           business_id: string;
@@ -117,6 +125,14 @@ export type Database = {
           duration_minutes?: number | null;
           active?: boolean;
           sort?: number;
+          kind?: "product" | "service";
+          description?: string | null;
+          category?: string | null;
+          price_mode?: "fixed" | "from" | "quote";
+          image_path?: string | null;
+          image_original_path?: string | null;
+          variants?: Json;
+          updated_at?: string;
         }
       >;
       brand_assets: Table<

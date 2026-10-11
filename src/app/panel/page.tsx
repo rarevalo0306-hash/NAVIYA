@@ -1,7 +1,4 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { signOut } from "@/app/login/actions";
-import { Wordmark } from "@/components/fish";
 import { Button, Card } from "@/components/ui";
 import { STEP_ROUTES, requireBusiness } from "@/lib/business";
 import { addContact, moveContact } from "./actions";
@@ -12,38 +9,19 @@ export default async function PanelPage() {
   const { supabase, business } = await requireBusiness();
   if (business.onboarding_step !== "done") redirect(STEP_ROUTES[business.onboarding_step] ?? "/onboarding");
 
-  const [{ data: stages }, { data: contacts }, { data: website }] = await Promise.all([
+  const [{ data: stages }, { data: contacts }] = await Promise.all([
     supabase.from("pipeline_stages").select("id, name, position").eq("business_id", business.id).order("position"),
     supabase
       .from("contacts")
       .select("id, name, phone, email, interest, stage_id, source_channel, created_at")
       .eq("business_id", business.id)
       .order("created_at", { ascending: false }),
-    supabase.from("websites").select("subdomain, status").eq("business_id", business.id).maybeSingle(),
   ]);
   const columns = stages ?? [];
   const byStage = (id: string) => (contacts ?? []).filter((c) => c.stage_id === id);
-  const sitePath = website?.status === "published" ? `/sitio/${website.subdomain}` : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-6 sm:px-8">
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <Wordmark />
-        <div className="flex flex-wrap items-center gap-4 text-sm">
-          {sitePath && (
-            <Link href={sitePath} target="_blank" className="min-h-11 content-center underline underline-offset-4">
-              Ver mi página
-            </Link>
-          )}
-          <Link href="/onboarding/entrevista" className="min-h-11 content-center text-muted underline underline-offset-4 hover:text-bone">
-            Ajustar mi negocio
-          </Link>
-          <form action={signOut}>
-            <button className="min-h-11 text-muted underline underline-offset-4 hover:text-bone">Salir</button>
-          </form>
-        </div>
-      </header>
-
+    <>
       <div className="flex flex-col gap-1">
         <p className="text-muted">Hola{business.owner_name ? `, ${business.owner_name}` : ""}</p>
         <h1 className="font-display text-3xl font-bold tracking-tight">{business.name}</h1>
@@ -110,6 +88,6 @@ export default async function PanelPage() {
           })}
         </div>
       )}
-    </div>
+    </>
   );
 }

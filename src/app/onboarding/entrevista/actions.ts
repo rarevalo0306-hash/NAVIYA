@@ -66,13 +66,7 @@ async function saveExtraction(
     if (error) throw new Error(error.message);
     updated = data;
   }
-  if (result.services) {
-    await supabase.from("services").delete().eq("business_id", business.id);
-    const { error } = await supabase
-      .from("services")
-      .insert(result.services.map((s, i) => ({ business_id: business.id, name: s.name, price: s.price, sort: i })));
-    if (error) throw new Error(error.message);
-  }
+  if (result.services) await replaceServices(supabase, business, result.services);
   await supabase.from("audit_log").insert({
     business_id: business.id,
     actor: "nuna",
@@ -181,6 +175,22 @@ async function previousAnswer(supabase: Supabase, b: BusinessRow, currentKey: st
   return { key: prevQ.key, understood: describeAnswer(prevQ.key, b, services ?? [], true) };
 }
 
+// La entrevista reemplaza la lista de lo que vende, pero nunca borra lo que el dueño ya trabajó en
+// "Lo que vendes" (con foto o descripción): eso se queda y solo se agrega lo nuevo.
+async function replaceServices(supabase: Supabase, b: BusinessRow, list: { name: string; price: number | null }[]) {
+  const { data: kept } = await supabase.from("services").select("name, sort").eq("business_id", b.id).or("image_path.not.is.null,description.not.is.null");
+  await supabase.from("services").delete().eq("business_id", b.id).is("image_path", null).is("description", null);
+  const have = new Set((kept ?? []).map((k) => k.name.trim().toLowerCase()));
+  let sort = Math.max(-1, ...(kept ?? []).map((k) => k.sort)) + 1;
+  const kind = b.business_type === "products" ? ("product" as const) : ("service" as const);
+  const rows = list
+    .filter((s) => !have.has(s.name.trim().toLowerCase()))
+    .map((s) => ({ business_id: b.id, name: s.name, price: s.price, kind, price_mode: s.price === null ? ("quote" as const) : ("fixed" as const), sort: sort++ }));
+  if (!rows.length) return;
+  const { error } = await supabase.from("services").insert(rows);
+  if (error) throw new Error(error.message);
+}
+
 // Cierra la entrevista y pasa al siguiente paso (marca).
 async function finish(supabase: Supabase, b: BusinessRow) {
   await nuna(supabase, b.id, "done", CLOSING(b.owner_name, b));
@@ -264,13 +274,7 @@ async function applyFacts(supabase: Supabase, userId: string, business: Business
     if (error) throw new Error(error.message);
     updated = data;
   }
-  if (newServices) {
-    await supabase.from("services").delete().eq("business_id", business.id);
-    const { error } = await supabase
-      .from("services")
-      .insert(newServices.map((s, i) => ({ business_id: business.id, name: s.name, price: s.price, sort: i })));
-    if (error) throw new Error(error.message);
-  }
+  if (newServices) await replaceServices(supabase, business, newServices);
   if (Object.keys(patch).length || newServices) {
     await supabase.from("audit_log").insert({
       business_id: business.id,
@@ -317,7 +321,8 @@ export async function startFix(key: string) {
 export async function restartInterview() {
   const { supabase, user, business } = await requireBusiness();
   await supabase.from("interview_messages").delete().eq("business_id", business.id);
-  await supabase.from("services").delete().eq("business_id", business.id);
+  // Lo que el dueño ya trabajó en "Lo que vendes" (con foto o descripción) se queda.
+  await supabase.from("services").delete().eq("business_id", business.id).is("image_path", null).is("description", null);
   await supabase
     .from("businesses")
     .update({

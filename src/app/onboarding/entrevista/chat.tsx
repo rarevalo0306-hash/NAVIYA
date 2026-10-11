@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { Fish } from "@/components/fish";
 import { canSpeak, pickVoice, recognitionClass, sentences, speakable, type Recognition } from "@/lib/voice";
+import { shrinkImage } from "@/lib/shrink-image";
 import { GeminiVoice } from "@/lib/voice-gemini";
 import { OpenAIAgentVoice } from "@/lib/voice-openai-agent";
 import { canRealtime, RealtimeVoice } from "@/lib/voice-realtime";
@@ -22,20 +23,6 @@ function MicIcon({ className = "size-5", off = false }: { className?: string; of
       {off && <path d="M3 3l18 18" />}
     </svg>
   );
-}
-
-// Las fotos del celular pesan mucho: se achican a 1600 px en JPEG antes de subirlas (si no se puede, va la original).
-async function shrinkImage(file: File): Promise<Blob> {
-  try {
-    const img = await createImageBitmap(file);
-    const k = Math.min(1, 1600 / Math.max(img.width, img.height));
-    const canvas = Object.assign(document.createElement("canvas"), { width: Math.round(img.width * k), height: Math.round(img.height * k) });
-    canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85));
-    return blob ?? file;
-  } catch {
-    return file;
-  }
 }
 
 // Ondas de voz (el botón para hablar con Nuna, como en ChatGPT).
