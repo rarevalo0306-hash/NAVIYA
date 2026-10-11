@@ -5,9 +5,10 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { Fish } from "@/components/fish";
 import { canSpeak, pickVoice, recognitionClass, sentences, speakable, type Recognition } from "@/lib/voice";
 import { GeminiVoice } from "@/lib/voice-gemini";
+import { OpenAIAgentVoice } from "@/lib/voice-openai-agent";
 import { canRealtime, RealtimeVoice } from "@/lib/voice-realtime";
 import { canRecord, startRecording, type RecorderHandle } from "@/lib/voice-recorder";
-import { answerInterview, startGeminiVoice, voiceLog, voiceSave } from "./actions";
+import { answerInterview, startVoice, voiceLog, voiceSave } from "./actions";
 
 type Message = { id: string; role: string; content: string; step_key?: string | null };
 
@@ -63,7 +64,7 @@ export function InterviewChat({
   realtime = false,
   ownerName = null,
   nextHref = null,
-  gemini = false,
+  voiceAgent = null,
 }: {
   messages: Message[];
   open: boolean;
@@ -72,7 +73,7 @@ export function InterviewChat({
   realtime?: boolean;
   ownerName?: string | null;
   nextHref?: string | null; // a dónde pasar solo cuando Nuna cierra la entrevista
-  gemini?: boolean; // la plática por voz la lleva Gemini Live (escucha, piensa y habla)
+  voiceAgent?: "gemini" | "openai" | null; // IA que lleva toda la plática por voz (escucha, piensa y habla)
 }) {
   const router = useRouter();
   const [draft, setDraft] = useState("");
@@ -96,7 +97,7 @@ export function InterviewChat({
   const afterSpeakRef = useRef<(() => void) | null>(null);
   const useAi = useRef(aiVoice);
   const rtRef = useRef<RealtimeVoice | null>(null); // conversación en tiempo real
-  const geminiRef = useRef<GeminiVoice | null>(null); // conversación con Gemini Live
+  const geminiRef = useRef<GeminiVoice | OpenAIAgentVoice | null>(null); // la IA de voz lleva la plática
   const [live, setLive] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const pendingRef = useRef(false);
@@ -416,7 +417,7 @@ export function InterviewChat({
     const started = messages.some((m) => m.role === "owner");
     const first = ownerName?.split(/\s+/)[0];
     const firstText = last ? (started ? `¡Hola${first ? `, ${first}` : ""}! Qué gusto escucharte. Seguimos donde íbamos: ${last.content}` : last.content) : null;
-    if (gemini && canRealtime()) return void startGemini(firstText);
+    if (voiceAgent && canRealtime()) return void startAgent(voiceAgent, firstText);
     if (realtime && canRealtime()) return void startRealtime(firstText);
     const then = () => {
       if (voiceModeRef.current && open) listen(true);
@@ -488,13 +489,14 @@ export function InterviewChat({
     }
   }
 
-  // Plática con Gemini Live: ella lleva la conversación y va anotando con sus herramientas.
-  // Si no se puede conectar, sigue con la voz de OpenAI (o la del navegador).
-  async function startGemini(firstText: string | null) {
+  // Plática con la IA de voz (Gemini Live u OpenAI Realtime): ella lleva la conversación y va
+  // anotando con sus herramientas. Si no se puede conectar, sigue con la voz por partes.
+  async function startAgent(engine: "gemini" | "openai", firstText: string | null) {
     setConnecting(true);
     let keys: string[] = []; // datos anotados en este turno (para marcar qué contestó el dueño)
     let ending = false;
-    const gv = new GeminiVoice({
+    const Voice = engine === "gemini" ? GeminiVoice : OpenAIAgentVoice;
+    const gv = new Voice({
       onSpeaking: setSpeaking,
       onListening: setListening,
       onTool: async (name, args) => {
@@ -531,13 +533,15 @@ export function InterviewChat({
     });
     geminiRef.current = gv;
     try {
-      const session = await startGeminiVoice();
+      const session = await startVoice();
       if ("error" in session) throw new Error(session.error);
-      await gv.connect(session.token, session.model, "hola");
+      if (session.engine === "gemini" && gv instanceof GeminiVoice) await gv.connect(session.token, session.model, "hola");
+      else if (session.engine === "openai" && gv instanceof OpenAIAgentVoice) await gv.connect(session.key, "hola");
+      else throw new Error("La voz cambió de proveedor; recarga la página");
       if (geminiRef.current !== gv) return gv.close();
       setLive(true);
     } catch (error) {
-      console.error("Voz con Gemini:", error);
+      console.error(`Voz (${engine}):`, error);
       if (geminiRef.current === gv) geminiRef.current = null;
       gv.close();
       if (!voiceModeRef.current) return;

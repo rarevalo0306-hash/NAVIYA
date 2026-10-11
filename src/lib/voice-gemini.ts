@@ -3,7 +3,7 @@
 // terminar). La llave temporal y las instrucciones las pone el servidor (startGeminiVoice).
 import { FunctionResponseScheduling, GoogleGenAI, Modality, type LiveServerMessage, type Session } from "@google/genai";
 
-export type GeminiEvents = {
+export type AgentEvents = {
   onSpeaking?: (speaking: boolean) => void;
   onListening?: (listening: boolean) => void;
   onTool: (name: string, args: Record<string, unknown>) => Promise<Record<string, unknown>>;
@@ -42,7 +42,7 @@ export class GeminiVoice {
   private closed = false;
 
   // Se crea con el toque del dueño: así el navegador deja reproducir audio (sobre todo iPhone).
-  constructor(private events: GeminiEvents) {
+  constructor(private events: AgentEvents) {
     this.inCtx = new AudioContext();
     this.outCtx = new AudioContext({ sampleRate: 24000 }); // Gemini habla en PCM de 24 kHz
     // Su voz sale por un <audio> (no directo de Web Audio) para que el cancelador de eco del

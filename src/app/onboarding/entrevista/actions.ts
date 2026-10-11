@@ -18,7 +18,8 @@ import {
 } from "@/lib/interview";
 import { geminiInterviewToken, geminiLiveEnabled } from "@/lib/gemini-live";
 import { FactsSchema, chatRules, converse, extractAnswer, factAnswer, factExtraction, nunaUsesAI, type Facts } from "@/lib/nuna";
-import { underDailyLimit } from "@/lib/voice-ai";
+import { INTERVIEW_TOOLS } from "@/lib/interview-tools";
+import { realtimeAgentSecret, realtimeEnabled, underDailyLimit } from "@/lib/voice-ai";
 import type { createClient } from "@/lib/supabase/server";
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
@@ -353,17 +354,21 @@ export async function restartInterview() {
   revalidatePath("/onboarding", "layout");
 }
 
-// ---------- Entrevista por voz con Gemini Live ----------
-// Gemini platica en tiempo real; estas acciones arrancan la sesión, guardan los datos que anota
+// ---------- Entrevista por voz (la IA de voz lleva toda la plática) ----------
+// La IA de voz (Gemini Live u OpenAI Realtime) platica en tiempo real; estas acciones arrancan la sesión, guardan los datos que anota
 // y dejan la plática escrita en el chat (para verla y para retomarla).
 
 const keysOf = (keys: unknown) =>
   Array.isArray(keys) ? keys.filter((k): k is QuestionKey => QUESTIONS.some((q) => q.key === k)) : [];
 const askFor = (q: (typeof QUESTIONS)[number], b: BusinessRow) => `${q.label} (${q.key === "owner" ? "¿Cómo te llamas?" : q.text(b)})`;
 
-export async function startGeminiVoice(): Promise<{ token: string; model: string } | { error: string }> {
+export type VoiceSession = { engine: "gemini"; token: string; model: string } | { engine: "openai"; key: string } | { error: string };
+
+// Arranca la plática por voz con la IA que la lleva completa (Gemini Live si está, si no OpenAI Realtime).
+export async function startVoice(): Promise<VoiceSession> {
   const { supabase, user, business: b } = await requireBusiness();
-  if (!geminiLiveEnabled()) return { error: "Voz con Gemini no configurada" };
+  const engine = geminiLiveEnabled() ? "gemini" : realtimeEnabled() ? "openai" : null;
+  if (!engine) return { error: "Voz no configurada" };
   if (!(await underDailyLimit(supabase, b.id, "voice.realtime"))) return { error: "Límite de voz de hoy alcanzado" };
   const [{ data: history }, { data: services }, missing] = await Promise.all([
     supabase.from("interview_messages").select("role, content").eq("business_id", b.id).order("created_at"),
@@ -398,12 +403,17 @@ export async function startGeminiVoice(): Promise<{ token: string; model: string
         "Cuando el dueño te diga «hola», salúdalo por su nombre y retoma donde iban, sin volver a presentarte."
       : `Cuando el dueño te diga «hola», salúdalo y preséntate así: «${QUESTIONS[0].text(b)}»`,
   ].join("\n\n");
-  const out = await geminiInterviewToken(instructions).catch((e: unknown) => {
-    console.error("Gemini Live: no se pudo crear la llave temporal", e);
+  const out: VoiceSession | null = await (engine === "gemini"
+    ? geminiInterviewToken(instructions).then((t) => (t ? { engine: "gemini" as const, ...t } : null))
+    : realtimeAgentSecret({ instructions, tools: INTERVIEW_TOOLS, prompt: [b.owner_name, b.name, b.industry, b.zone].filter(Boolean).join(", ") }).then(
+        (key) => (key ? { engine: "openai" as const, key } : null),
+      )
+  ).catch((e: unknown) => {
+    console.error(`Voz (${engine}): no se pudo crear la llave temporal`, e);
     return null;
   });
   if (!out) return { error: "No se pudo iniciar la voz" };
-  await supabase.from("audit_log").insert({ business_id: b.id, actor: "owner", actor_user_id: user.id, action: "voice.realtime", data: { engine: "gemini" } });
+  await supabase.from("audit_log").insert({ business_id: b.id, actor: "owner", actor_user_id: user.id, action: "voice.realtime", data: { engine } });
   return out;
 }
 

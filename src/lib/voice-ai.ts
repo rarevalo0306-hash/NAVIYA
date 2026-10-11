@@ -102,29 +102,11 @@ function realtimeInstructions(country: string | null) {
 }
 
 // Llave temporal para que el navegador se conecte (vence en pocos minutos si no se usa).
-export async function realtimeClientSecret(opts: { country: string | null; prompt: string }) {
+async function clientSecret(session: Record<string, unknown>) {
   const res = await fetch(`${BASE()}/realtime/client_secrets`, {
     method: "POST",
     headers: { Authorization: `Bearer ${KEY()}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      session: {
-        type: "realtime",
-        model: REALTIME_MODEL(),
-        instructions: realtimeInstructions(opts.country),
-        output_modalities: ["audio"],
-        audio: {
-          input: {
-            // Sin idioma fijo: casi siempre español, pero el dueño puede pedir inglés.
-            transcription: { model: REALTIME_TRANSCRIBE(), ...(opts.prompt ? { prompt: opts.prompt.slice(0, 800) } : {}) },
-            // Detecta cuándo el dueño terminó de hablar, pero la IA no contesta sola (lo hace Nuna) ni se
-            // calla sola: la interrupción la decide el navegador, para que un ruido corto no la corte.
-            turn_detection: { type: "semantic_vad", create_response: false, interrupt_response: false, eagerness: "medium" },
-            noise_reduction: { type: "near_field" },
-          },
-          output: { voice: REALTIME_VOICE(), speed: 1.05 },
-        },
-      },
-    }),
+    body: JSON.stringify({ session: { type: "realtime", model: REALTIME_MODEL(), output_modalities: ["audio"], ...session } }),
     signal: AbortSignal.timeout(20_000),
   });
   if (!res.ok) {
@@ -133,4 +115,42 @@ export async function realtimeClientSecret(opts: { country: string | null; promp
   }
   const json = (await res.json()) as { value?: string };
   return json.value ?? null;
+}
+
+const transcription = (prompt: string) => ({ model: REALTIME_TRANSCRIBE(), ...(prompt ? { prompt: prompt.slice(0, 800) } : {}) });
+
+// Solo voz: lee lo que escribe Nuna (DeepSeek) y transcribe al dueño.
+export function realtimeClientSecret(opts: { country: string | null; prompt: string }) {
+  return clientSecret({
+    instructions: realtimeInstructions(opts.country),
+    audio: {
+      input: {
+        // Sin idioma fijo: casi siempre español, pero el dueño puede pedir inglés.
+        transcription: transcription(opts.prompt),
+        // Detecta cuándo el dueño terminó de hablar, pero la IA no contesta sola (lo hace Nuna) ni se
+        // calla sola: la interrupción la decide el navegador, para que un ruido corto no la corte.
+        turn_detection: { type: "semantic_vad", create_response: false, interrupt_response: false, eagerness: "medium" },
+        noise_reduction: { type: "near_field" },
+      },
+      output: { voice: REALTIME_VOICE(), speed: 1.05 },
+    },
+  });
+}
+
+// Todo en uno: OpenAI escucha, piensa y habla (lleva la entrevista con las reglas de Nuna) y anota
+// con las herramientas. Instrucciones y herramientas quedan fijas en la llave.
+export function realtimeAgentSecret(opts: { instructions: string; tools: { name: string; description: string; parameters: unknown }[]; prompt: string }) {
+  return clientSecret({
+    instructions: opts.instructions,
+    tools: opts.tools.map((t) => ({ type: "function", ...t })),
+    tool_choice: "auto",
+    audio: {
+      input: {
+        transcription: transcription(opts.prompt),
+        turn_detection: { type: "semantic_vad", create_response: true, interrupt_response: true, eagerness: "medium" },
+        noise_reduction: { type: "near_field" },
+      },
+      output: { voice: REALTIME_VOICE() },
+    },
+  });
 }
