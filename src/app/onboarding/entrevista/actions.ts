@@ -411,7 +411,9 @@ export async function startVoice(): Promise<VoiceSession> {
   ].join("\n\n");
   const out: VoiceSession | null = await (engine === "gemini"
     ? geminiInterviewToken(instructions).then((t) => (t ? { engine: "gemini" as const, ...t } : null))
-    : realtimeAgentSecret({ instructions, tools: INTERVIEW_TOOLS, prompt: [b.owner_name, b.name !== "Mi negocio" && b.name, b.industry, b.zone].filter(Boolean).join(", ") }).then(
+    : // Sin pista para el transcriptor: con ruido la "oía" y la repetía como respuesta. El cerebro oye el
+      // audio directo; la transcripción solo deja la plática escrita.
+      realtimeAgentSecret({ instructions, tools: INTERVIEW_TOOLS, prompt: "" }).then(
         (key) => (key ? { engine: "openai" as const, key } : null),
       )
   ).catch((e: unknown) => {
