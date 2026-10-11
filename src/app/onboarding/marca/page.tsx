@@ -15,9 +15,11 @@ import { FORMAT_LABEL, ITEMS, ZIP_NAME, type Group } from "@/lib/brand-files";
 import { recraftEnabled } from "@/lib/brand-recraft";
 import { brandKitPrice } from "@/lib/brand-store";
 import { publicAssetUrl, requireBusiness } from "@/lib/business";
+import { slugify } from "@/lib/site";
 import { generateKits, purchaseKit, rewriteBase, saveBrand } from "./actions";
 import { KitEditor } from "./kit-editor";
 import { Proposal } from "./proposal-card";
+import { ZipDownload } from "./zip-download";
 import { Uploader } from "./uploader";
 
 // Elegir una propuesta hace que Nuna escriba la base de marca (puede tardar).
@@ -235,12 +237,7 @@ export default async function BrandPage(props: PageProps<"/onboarding/marca">) {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h3 className="font-display text-xl font-bold">Tu kit de marca ✓</h3>
               <div className="flex flex-wrap gap-2">
-                <a
-                  href={`/api/marca/${ZIP_NAME}`}
-                  className="inline-flex min-h-12 items-center rounded-full bg-lime px-6 font-semibold text-lime-ink"
-                >
-                  Descargar todo (.zip)
-                </a>
+                <ZipDownload href={`/api/marca/${ZIP_NAME}`} filename={`${slugify(business.name)}-${ZIP_NAME}`} />
                 <Link href="/manual-de-marca" target="_blank" className="inline-flex min-h-12 items-center rounded-full border border-line px-6 font-semibold hover:bg-panel-2">
                   Manual de marca
                 </Link>
