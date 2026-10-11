@@ -448,8 +448,8 @@ Logo/03 JPG fondo blanco .. Para documentos, Word y donde no se acepta transpare
 Logo/04 Iconos web ........ favicon.ico y los íconos para celular (apple-touch-icon, android-chrome) de tu página web.
 Logo/05 Photoshop ......... PSD por capas.
 Redes sociales ............ Una carpeta por red (Facebook, Instagram, WhatsApp, TikTok, Google, LinkedIn, YouTube, X) con todas
-                            sus plantillas en el tamaño exacto y con el llamado de esa red, listas para subir tal cual. En "Editables (Photoshop)" está
-                            cada diseño por capas, una sola vez, con las redes donde se usa.
+                            sus plantillas en el tamaño exacto y con el llamado de esa red: el PNG se sube tal cual y el PSD
+                            (Photoshop, por capas) es para editarlo.
 Presentación .............. Manual de marca, tablero, textos de marca (para copiar y pegar) y firma de correo (con su logo).
 Papelería ................. Tarjeta, hoja membretada (PDF y Word), cotización y volante para imprenta.
 Mockups ................... Cómo se ve tu marca en letrero, camiseta, bolsa, vehículo y WhatsApp.
@@ -573,7 +573,11 @@ export async function brandZip(c: BrandCtx) {
     if (!e.networks.includes(network)) e.networks.push(network);
     editables.set(key, e);
   }
-  for (const e of editables.values()) add(`Redes sociales/Editables (Photoshop)/${e.name} - ${e.networks.join(", ")}.psd`, await toPsd(e.art, e.px));
+  // El PSD va junto a su PNG en la carpeta de la red; si un diseño lo comparten varias redes, va una sola vez aparte.
+  for (const e of editables.values()) {
+    const path = e.networks.length === 1 ? `${e.networks[0]}/${e.name}` : `Editables (Photoshop)/${e.name} - ${e.networks.join(", ")}`;
+    add(`Redes sociales/${path}.psd`, await toPsd(e.art, e.px));
+  }
   const horizontal = await logoArt({ ...c.kit, layout: "clasico" }, c.name, "principal", "color", c.fonts);
   add("Presentación/Firma de correo - logo (320px).png", await toPng(horizontal, 320));
   return { data: Buffer.from(zipSync(files, { level: 6 })), type: MIME.zip };
