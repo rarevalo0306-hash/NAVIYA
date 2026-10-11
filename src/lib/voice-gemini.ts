@@ -93,6 +93,12 @@ export class GeminiVoice {
     else fn();
   }
 
+  // Lo que el dueño escribe (o el resumen de un archivo que adjunta) mientras platican.
+  sendText(text: string) {
+    this.heard += (this.heard ? " " : "") + text;
+    this.session?.sendClientContent({ turns: text, turnComplete: true });
+  }
+
   // Silenciar el micrófono (botón de micrófono, como en ChatGPT).
   setMuted(muted: boolean) {
     this.mic?.getTracks().forEach((t) => (t.enabled = !muted));

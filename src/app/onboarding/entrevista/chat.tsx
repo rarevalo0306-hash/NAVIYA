@@ -24,6 +24,20 @@ function MicIcon({ className = "size-5", off = false }: { className?: string; of
   );
 }
 
+// Las fotos del celular pesan mucho: se achican a 1600 px en JPEG antes de subirlas (si no se puede, va la original).
+async function shrinkImage(file: File): Promise<Blob> {
+  try {
+    const img = await createImageBitmap(file);
+    const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+    const canvas = Object.assign(document.createElement("canvas"), { width: Math.round(img.width * k), height: Math.round(img.height * k) });
+    canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85));
+    return blob ?? file;
+  } catch {
+    return file;
+  }
+}
+
 // Ondas de voz (el botón para hablar con Nuna, como en ChatGPT).
 function WaveIcon({ className = "size-6" }: { className?: string }) {
   return (
@@ -110,6 +124,8 @@ export function InterviewChat({
   const geminiRef = useRef<GeminiVoice | OpenAIAgentVoice | null>(null); // la IA de voz lleva la plática
   const [live, setLive] = useState(false);
   const [muted, setMuted] = useState(false);
+  const [reading, setReading] = useState(false); // leyendo un archivo adjunto
+  const fileRef = useRef<HTMLInputElement>(null);
   const [connecting, setConnecting] = useState(false);
   const pendingRef = useRef(false);
   const leaveRef = useRef<(() => void) | null>(null); // pasar al siguiente paso cuando Nuna termine de hablar
@@ -571,6 +587,35 @@ export function InterviewChat({
     }
   }
 
+  // Lo escrito va a la IA de voz si están platicando por voz (entra a la misma plática); si no, al chat.
+  function say(text: string) {
+    const agent = geminiRef.current;
+    if (!text.trim()) return;
+    if (agent && live) {
+      setDraft("");
+      agent.sendText(text.trim());
+    } else send(text);
+  }
+
+  // Archivo adjunto (foto de la lista de precios, tarjeta, menú, PDF): el servidor lo lee y el resumen entra a la plática.
+  async function attach(file: File) {
+    if (file.type === "application/pdf" && file.size > 4 * 1024 * 1024) return setHint("El PDF es muy grande (máximo 4 MB).");
+    setReading(true);
+    setHint(null);
+    try {
+      const body = new FormData();
+      body.append("archivo", file.type.startsWith("image/") ? await shrinkImage(file) : file, file.name);
+      const res = await fetch("/api/entrevista/archivo", { method: "POST", body });
+      const json = (await res.json().catch(() => ({}))) as { summary?: string; error?: string };
+      if (!res.ok || !json.summary) return setHint(json.error ?? "No pude leer el archivo. Intenta con una foto más clara o un PDF.");
+      say(`Te comparto un archivo (${file.name}). Esto dice: ${json.summary}`);
+    } catch {
+      setHint("Se cortó la conexión al subir el archivo. Intenta de nuevo.");
+    } finally {
+      setReading(false);
+    }
+  }
+
   function onMic() {
     if (listening) {
       recorderRef.current?.stop();
@@ -614,7 +659,10 @@ export function InterviewChat({
       <div
         ref={listRef}
         aria-live="polite"
-        className="flex h-[28rem] flex-col gap-5 overflow-y-auto rounded-[28px] border border-white/[0.06] bg-panel p-5 sm:h-[32rem] sm:p-7"
+        // Platicando por voz, el historial se achica para que el círculo y el cuadro de escribir quepan en la pantalla.
+        className={`flex flex-col gap-5 overflow-y-auto rounded-[28px] border border-white/[0.06] bg-panel p-5 transition-[height] sm:p-7 ${
+          voiceMode ? "h-[14rem] sm:h-[24rem]" : "h-[28rem] sm:h-[32rem]"
+        }`}
       >
         {messages.map((m) =>
           m.role === "owner" ? (
@@ -656,7 +704,7 @@ export function InterviewChat({
       )}
 
       {open && voiceMode && (
-        <div className="flex flex-col items-center gap-4 rounded-[28px] border border-white/[0.06] bg-panel px-5 py-6">
+        <div className="flex flex-col items-center gap-3 rounded-[28px] border border-white/[0.06] bg-panel px-5 py-5">
           <button
             type="button"
             onClick={speaking ? hush : onMic}
@@ -717,31 +765,17 @@ export function InterviewChat({
         </div>
       )}
 
+      {/* Como en ChatGPT: se puede escribir y adjuntar archivos siempre, también mientras se platica por voz. */}
       {open && (
         <form
           onSubmit={(e) => {
             e.preventDefault();
             recRef.current?.abort();
             recorderRef.current?.cancel();
-            send(draft);
+            say(draft);
           }}
-          className="flex gap-2"
+          className="flex flex-col gap-1 rounded-[28px] border border-white/[0.08] bg-panel p-2 transition focus-within:border-lime/50"
         >
-          {support.listen && !voiceMode && (
-            <button
-              type="button"
-              onClick={onMic}
-              disabled={transcribing}
-              aria-pressed={listening}
-              aria-label={listening ? "Terminé de hablar" : "Responder hablando"}
-              className={`relative flex size-14 shrink-0 items-center justify-center rounded-full border transition active:scale-95 disabled:opacity-60 ${
-                listening ? "border-red-500 bg-red-500 text-white" : "border-line text-bone hover:bg-panel"
-              }`}
-              style={listening ? { boxShadow: `0 0 0 ${3 + level * 10}px rgb(239 68 68 / 0.25)` } : undefined}
-            >
-              <MicIcon />
-            </button>
-          )}
           <label htmlFor="answer" className="sr-only">
             Tu respuesta
           </label>
@@ -751,20 +785,72 @@ export function InterviewChat({
             onChange={(e) => setDraft(e.target.value)}
             autoComplete="off"
             placeholder={
-              listening ? "Te escucho…" : transcribing ? "Escribiendo lo que dijiste…" : support.listen ? "Escribe o toca el micrófono…" : "Escribe tu respuesta…"
+              listening && !live
+                ? "Te escucho…"
+                : transcribing
+                  ? "Escribiendo lo que dijiste…"
+                  : voiceMode
+                    ? "Escribe o adjunta algo…"
+                    : "Escribe o adjunta un archivo…"
             }
-            className="min-h-14 min-w-0 flex-1 rounded-full border border-white/[0.06] bg-panel px-6 text-[17px] transition placeholder:text-muted/70 focus:border-lime/60"
+            className="min-h-12 min-w-0 bg-transparent px-3 text-[17px] outline-none placeholder:text-muted/70"
           />
-          <button
-            type="submit"
-            disabled={pending || !draft.trim()}
-            aria-label="Enviar"
-            className="flex size-14 shrink-0 items-center justify-center rounded-full bg-lime text-lime-ink transition hover:brightness-110 active:scale-95 disabled:opacity-40 disabled:active:scale-100"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="size-6" aria-hidden>
-              <path d="M12 19V5M5 12l7-7 7 7" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-2">
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,application/pdf"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (file) void attach(file);
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={reading}
+              aria-label="Adjuntar foto o PDF"
+              className="flex size-11 shrink-0 items-center justify-center rounded-full text-bone transition hover:bg-panel-2 active:scale-95 disabled:opacity-50"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" className="size-6" aria-hidden>
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            </button>
+            {reading && (
+              <span role="status" className="flex items-center gap-2 text-sm text-muted">
+                <span aria-hidden className="size-4 rounded-full border-2 border-muted/30 border-t-muted motion-safe:animate-spin" />
+                Leyendo tu archivo…
+              </span>
+            )}
+            <span className="flex-1" />
+            {support.listen && !voiceMode && (
+              <button
+                type="button"
+                onClick={onMic}
+                disabled={transcribing}
+                aria-pressed={listening}
+                aria-label={listening ? "Terminé de hablar" : "Dictar respuesta"}
+                className={`relative flex size-11 shrink-0 items-center justify-center rounded-full transition active:scale-95 disabled:opacity-60 ${
+                  listening ? "bg-red-500 text-white" : "text-bone hover:bg-panel-2"
+                }`}
+                style={listening ? { boxShadow: `0 0 0 ${3 + level * 10}px rgb(239 68 68 / 0.25)` } : undefined}
+              >
+                <MicIcon />
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={pending || !draft.trim()}
+              aria-label="Enviar"
+              className="flex size-11 shrink-0 items-center justify-center rounded-full bg-lime text-lime-ink transition hover:brightness-110 active:scale-95 disabled:opacity-40 disabled:active:scale-100"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="size-5" aria-hidden>
+                <path d="M12 19V5M5 12l7-7 7 7" />
+              </svg>
+            </button>
+          </div>
         </form>
       )}
       {hint && (

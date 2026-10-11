@@ -66,6 +66,14 @@ export class OpenAIAgentVoice {
     else fn();
   }
 
+  // Lo que el dueño escribe (o el resumen de un archivo que adjunta) mientras platican: entra a la misma plática.
+  sendText(text: string) {
+    this.heard.push(text);
+    this.send({ type: "conversation.item.create", item: { type: "message", role: "user", content: [{ type: "input_text", text }] } });
+    if (this.open || this.calls) this.wantReply = true;
+    else this.send({ type: "response.create" });
+  }
+
   // Silenciar el micrófono (botón de micrófono, como en ChatGPT).
   setMuted(muted: boolean) {
     this.mic?.getTracks().forEach((t) => (t.enabled = !muted));
