@@ -48,3 +48,48 @@ body {
     animation: none;
   }
 }
+
+/* Logo animado de Nuna (su acompañante en el alta). Se dibuja a 204 px y se escala con --nuna-k.
+   Estados en data-state: listening (escucha), thinking (piensa), speaking (habla). */
+.nuna-mark-box { width: calc(204px * var(--nuna-k, 1)); height: calc(204px * var(--nuna-k, 1)); }
+.nuna-mark { position: relative; display: grid; place-items: center; width: 204px; height: 204px; border-radius: 50%; isolation: isolate;
+  transform: scale(var(--nuna-k, 1)); transform-origin: top left;
+  background: radial-gradient(circle, rgba(50, 232, 210, 0.15) 0%, rgba(11, 57, 75, 0.26) 42%, transparent 70%);
+  filter: drop-shadow(rgba(35, 216, 189, 0.15) 0 0 18px); transition: filter 0.85s; }
+.nuna-mark::before, .nuna-mark::after { content: ""; position: absolute; border-radius: 50%; pointer-events: none; }
+.nuna-mark::before { inset: 15px; opacity: 0.95; filter: drop-shadow(rgba(35, 216, 189, 0.533) 0 0 3px);
+  background: repeating-conic-gradient(from 12deg, rgba(113, 255, 235, 0.667) 0deg, rgba(113, 255, 235, 0.667) 16deg, transparent 16deg, transparent 23deg, rgba(35, 216, 189, 0.267) 23deg, rgba(35, 216, 189, 0.267) 45deg, transparent 45deg, transparent 60deg);
+  mask: radial-gradient(circle, transparent 67%, #000 68%, #000 70%, transparent 71%);
+  animation: nuna-orbit 52s linear infinite; }
+.nuna-mark::after { inset: 28px; opacity: 0.8; border: 1px solid; border-color: rgba(35, 216, 189, 0.19) rgb(144, 255, 240) rgba(35, 216, 189, 0.19) rgba(99, 170, 255, 0.467);
+  box-shadow: rgba(35, 216, 189, 0.05) 0 0 20px inset, rgba(35, 216, 189, 0.082) 0 0 16px; animation: nuna-orbit 32s linear infinite reverse; }
+.nuna-mark .nm-core { position: absolute; inset: 36px; z-index: 0; border-radius: 50%; border: 1px solid rgba(159, 255, 244, 0.467);
+  background: radial-gradient(at 30% 18%, rgba(204, 255, 240, 0.3), transparent 42%), radial-gradient(at 76% 80%, rgba(49, 143, 255, 0.25), transparent 58%), linear-gradient(145deg, rgba(22, 67, 82, 0.8), rgba(4, 23, 34, 0.933));
+  box-shadow: rgba(215, 255, 242, 0.22) 0 2px 8px inset, rgba(0, 17, 28, 0.667) -5px -9px 24px inset, rgba(35, 216, 189, 0.19) 0 0 25px; }
+.nuna-mark .nm-core::before { content: ""; position: absolute; inset: 7px; border-radius: 50%; border-top: 1px solid rgba(175, 255, 240, 0.3); transform: rotate(-28deg); }
+.nuna-mark .nm-core::after { content: ""; position: absolute; width: 4px; height: 4px; border-radius: 50%; right: 15%; top: 24%; background: rgb(181, 255, 255); box-shadow: rgb(35, 216, 189) 0 0 9px, rgba(35, 216, 189, 0.333) 0 0 20px; }
+.nuna-mark .nm-depth { position: absolute; inset: 3px; z-index: 3; border-radius: 50%; border: 1px solid; border-color: rgba(113, 255, 231, 0.667) rgba(113, 255, 231, 0.667) rgba(100, 186, 255, 0.733) transparent;
+  box-shadow: rgba(35, 216, 189, 0.2) 0 2px 10px; transform: rotate(-28deg) scaleY(0.48); animation: nuna-depth 26s ease-in-out infinite; pointer-events: none; }
+.nuna-mark .nm-orbit { position: absolute; inset: 0; border-radius: 50%; border: 1px solid rgba(35, 216, 189, 0.063); opacity: 0.6; animation: nuna-orbit 48s linear infinite; }
+.nuna-mark .nm-orbit::before, .nuna-mark .nm-orbit::after { content: ""; position: absolute; left: 50%; border-radius: 50%; }
+.nuna-mark .nm-orbit::before { top: -2px; width: 5px; height: 5px; background: rgb(173, 255, 243); box-shadow: rgb(159, 255, 240) 0 0 5px, rgb(35, 216, 189) 0 0 14px; }
+.nuna-mark .nm-orbit::after { bottom: -2px; width: 3px; height: 3px; background: rgb(35, 216, 189); }
+.nuna-mark .nm-pulse { position: absolute; inset: 29px; border-radius: 50%; border: 1px solid rgba(35, 216, 189, 0.333); opacity: 0.2; animation: nuna-pulse 12s ease-out infinite; pointer-events: none; }
+.nuna-mark .nm-scan { position: absolute; inset: 38px; z-index: 1; border-radius: 50%; overflow: hidden; opacity: 0.3; }
+.nuna-mark .nm-scan::before { content: ""; position: absolute; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(141, 255, 240, 0.533), transparent);
+  box-shadow: rgba(35, 216, 189, 0.267) 0 0 10px; animation: nuna-sweep 6s ease-in-out infinite; }
+.nuna-mark svg { position: relative; z-index: 2; width: 84px; fill: none; stroke: rgb(213, 255, 246); stroke-width: 1.5; stroke-linecap: round;
+  filter: drop-shadow(rgba(36, 217, 187, 0.667) 0 0 7px); animation: nuna-float 10s ease-in-out infinite; transition: filter 0.8s, stroke 0.8s; }
+.nuna-mark[data-state="listening"] { filter: drop-shadow(rgba(35, 216, 189, 0.333) 0 0 20px); }
+.nuna-mark[data-state="thinking"] svg { animation: nuna-soft-light 3.6s ease-in-out infinite; stroke: rgb(145, 215, 255); }
+.nuna-mark[data-state="speaking"] { filter: drop-shadow(rgba(35, 216, 189, 0.333) 0 0 22px); }
+.nuna-mark[data-state="speaking"] svg { animation: nuna-soft-light 2.2s ease-in-out infinite; }
+@keyframes nuna-orbit { 100% { transform: rotate(360deg); } }
+@keyframes nuna-depth { 0%, 100% { transform: rotate(-28deg) scaleY(0.48); opacity: 0.6; } 50% { transform: rotate(-14deg) scaleY(0.6); opacity: 1; } }
+@keyframes nuna-pulse { 0% { transform: scale(0.85); opacity: 0; } 20% { opacity: 0.55; } 85%, 100% { transform: scale(1.32); opacity: 0; } }
+@keyframes nuna-sweep { 0%, 100% { top: 15%; opacity: 0; } 25%, 75% { opacity: 0.6; } 50% { top: 85%; opacity: 0.3; } }
+@keyframes nuna-float { 0%, 100% { transform: translateY(0); opacity: 1; } 50% { transform: translateY(-3px); opacity: 0.85; } }
+@keyframes nuna-soft-light { 0%, 100% { opacity: 0.82; filter: drop-shadow(rgba(35, 216, 189, 0.333) 0 0 4px); } 50% { opacity: 1; filter: drop-shadow(rgba(123, 255, 233, 0.667) 0 0 11px); } }
+@media (prefers-reduced-motion: reduce) {
+  .nuna-mark, .nuna-mark *, .nuna-mark::before, .nuna-mark::after, .nuna-mark *::before, .nuna-mark *::after { animation: none !important; }
+}

@@ -17,7 +17,7 @@ import {
   type QuestionKey,
 } from "@/lib/interview";
 import { geminiInterviewToken, geminiLiveEnabled } from "@/lib/gemini-live";
-import { FactsSchema, chatRules, converse, extractAnswer, factAnswer, factExtraction, nunaUsesAI, type Facts } from "@/lib/nuna";
+import { FactsSchema, VOICE_STYLE, chatRules, converse, extractAnswer, factAnswer, factExtraction, nunaUsesAI, type Facts } from "@/lib/nuna";
 import { INTERVIEW_TOOLS } from "@/lib/interview-tools";
 import { realtimeAgentSecret, realtimeEnabled, underDailyLimit } from "@/lib/voice-ai";
 import type { createClient } from "@/lib/supabase/server";
@@ -379,21 +379,7 @@ export async function startVoice(): Promise<VoiceSession> {
   const started = (history ?? []).some((m) => m.role === "owner");
   const instructions = [
     chatRules(b),
-    "Estás hablando por voz en tiempo real: frases cortas y naturales, una pregunta a la vez. " +
-      // El dueño de Orbusiness eligió un español neutro con un toque de Madrid; las palabras y el trato siguen siendo los del país del dueño.
-      "Habla SIEMPRE en español neutro con un ligero toque de acento de Madrid (nunca con acento de Estados Unidos). " +
-      "Tu voz es la de una mujer joven y bella: melodiosa, suave, segura y con una sonrisa al hablar; encantadora y un poco coqueta en el tono, " +
-      "de forma sutil y elegante (nunca romántica, insinuante ni fuera de lugar: sigues siendo profesional). " +
-      // Estilo que eligió el dueño de Orbusiness (a partir de una voz de ejemplo que le gustó).
-      "Tu estilo base es calmado y claro: hablas sin prisa, con pausas naturales, frases cortas y ordenadas, transmites que todo está bajo control " +
-      "y que vas a poner orden; cálida, segura y con un toque de humor suave cuando viene al caso. " +
-      "Si el dueño lo pide o lo notas, adapta el tono: más formal, más casual o más directo. " +
-      "pero usa las palabras y el trato del país del dueño (nada de «vosotros» ni modismos españoles) " +
-      "Dentro de esa calma, varía el tono como una persona real, nunca monótona: alegre al saludar, curiosa al preguntar, " +
-      "con interés genuino cuando te cuenta algo, tranquila cuando confirmas un dato y cálida al despedirte. " +
-      "(solo los nombres propios en inglés se dicen en inglés; si el dueño pide inglés, cambia a inglés). " +
-      "Ignora ruidos, televisión o pláticas de fondo que no sean para ti. Si no entendiste, pide que te lo repita. " +
-      "Habla SOLO en español: nunca metas palabras en inglés (si el dueño usa una, como «handyman», puedes repetirla tal cual, pero tú no las uses). " +
+    VOICE_STYLE +
       "La entrevista dura unos 5 minutos: reacciona en una sola frase corta (sin resumir lo que te dijo) y pasa a lo siguiente; " +
       "puedes juntar dos preguntas que van juntas (por ejemplo, horario y teléfono). Si se desvía del tema, contesta en una frase y vuelve. " +
       "Los teléfonos repítelos dígito por dígito para confirmarlos; nunca cambies ni inventes dígitos.",

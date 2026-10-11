@@ -1,7 +1,13 @@
 import { Wordmark } from "@/components/fish";
 import { getOwnerContext } from "@/lib/business";
+import { COMPANION_STEPS, STEP_GUIDE } from "@/lib/companion";
+import { realtimeEnabled } from "@/lib/voice-ai";
 import { signOut } from "@/app/login/actions";
+import { NunaCompanion } from "./nuna-companion";
 import { StepNav } from "./step-nav";
+
+// Después de la entrevista, Nuna acompaña cada paso (marca, página web, CRM y activar).
+const TIPS = Object.fromEntries(COMPANION_STEPS.map((s) => [s, STEP_GUIDE[s].tip]));
 
 export default async function OnboardingLayout({ children }: LayoutProps<"/onboarding">) {
   const { business } = await getOwnerContext();
@@ -15,7 +21,9 @@ export default async function OnboardingLayout({ children }: LayoutProps<"/onboa
         </form>
       </header>
       {business && <StepNav reached={business.onboarding_step} />}
-      <main className="flex flex-1 flex-col gap-8">{children}</main>
+      {/* Espacio abajo para que Nuna (fija abajo al centro) no tape los últimos botones. */}
+      <main className="flex flex-1 flex-col gap-8 pb-44">{children}</main>
+      {business && <NunaCompanion tips={TIPS} voice={realtimeEnabled()} />}
     </div>
   );
 }

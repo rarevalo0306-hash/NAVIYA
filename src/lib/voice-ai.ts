@@ -16,7 +16,7 @@ const TTS_VOICE = () => process.env.OPENAI_TTS_VOICE?.trim() || "marin";
 const STT_MODEL = () => process.env.OPENAI_STT_MODEL?.trim() || "gpt-transcribe";
 
 // Límites diarios por negocio, para que nadie use la voz sin control (cada uso queda en audit_log).
-export const DAILY_LIMIT = { "voice.tts": 400, "voice.stt": 300, "voice.realtime": 30, "interview.attachment": 40 } as const;
+export const DAILY_LIMIT = { "voice.tts": 400, "voice.stt": 300, "voice.realtime": 30, "interview.attachment": 40, "companion.ask": 200 } as const;
 
 export async function underDailyLimit(supabase: Supabase, businessId: string, action: keyof typeof DAILY_LIMIT) {
   const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
@@ -142,8 +142,7 @@ export function realtimeClientSecret(opts: { country: string | null; prompt: str
 export function realtimeAgentSecret(opts: { instructions: string; tools: { name: string; description: string; parameters: unknown }[]; prompt: string }) {
   return clientSecret({
     instructions: opts.instructions,
-    tools: opts.tools.map((t) => ({ type: "function", ...t })),
-    tool_choice: "auto",
+    ...(opts.tools.length ? { tools: opts.tools.map((t) => ({ type: "function", ...t })), tool_choice: "auto" } : {}),
     audio: {
       input: {
         transcription: transcription(opts.prompt),
