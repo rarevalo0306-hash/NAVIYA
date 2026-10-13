@@ -21,6 +21,16 @@ const ReplySchema = z.object({
     .nullable()
     .catch(null),
   customer_name: z.string().nullable().catch(null),
+  // Con el pedido: cómo lo recibe y cómo paga (lo que el cliente dijo).
+  delivery: z
+    .object({
+      fulfillment: z.enum(["delivery", "pickup"]).nullable().catch(null),
+      address: z.string().nullable().catch(null),
+      payment: z.string().nullable().catch(null),
+    })
+    .nullable()
+    .catch(null),
+  photos: z.array(z.string()).catch([]), // refs de productos cuya foto se le manda al cliente
 });
 export type CustomerReply = z.infer<typeof ReplySchema>;
 
@@ -29,7 +39,7 @@ const ref = (i: number) => `P${i + 1}`;
 function itemLine(s: Service, i: number, currency: string) {
   const price = s.price_mode === "quote" || s.price === null ? "a cotizar" : `${s.price_mode === "from" ? "desde " : ""}${money(Number(s.price), currency)}`;
   const variants = (Array.isArray(s.variants) ? (s.variants as { name: string; options: string[] }[]) : []).map((v) => `${v.name}: ${v.options.join("/")}`).join("; ");
-  return `${ref(i)} · ${s.kind === "product" ? "Producto" : "Servicio"} · ${s.name} · ${price}${variants ? ` · opciones ${variants}` : ""}${s.description ? ` · ${s.description.slice(0, 300)}` : ""}`;
+  return `${ref(i)} · ${s.kind === "product" ? "Producto" : "Servicio"} · ${s.name} · ${price}${variants ? ` · opciones ${variants}` : ""}${s.image_path ? " · tiene foto" : " · sin foto"}${s.description ? ` · ${s.description.slice(0, 300)}` : ""}`;
 }
 
 function businessFacts(b: BusinessRow, items: Service[]) {
@@ -65,6 +75,9 @@ const RULES =
   "Pedidos: si el cliente quiere comprar, confirma producto, cantidad y opciones (talla, color…), su nombre y si recoge o se le entrega" +
   " (si hay entrega, la dirección). Cuando el cliente confirme el pedido en su último mensaje, ponlo en order (ref del catálogo, qty, options) " +
   "y dile que el negocio le confirma el total y cómo pagar; si no, order=null. No repitas un pedido que ya se registró antes en la plática. " +
+  "Junto con order llena delivery: fulfillment («delivery» o «pickup»), address (la dirección que dio, o null) y payment (cómo dijo que paga, o null). " +
+  "Fotos: si el cliente pide ver fotos, pon en photos las refs de esos productos (máximo 3, solo los que «tienen foto») y dile que ahí se las mandas; " +
+  "si no tienen foto, díselo con amabilidad. Si no pidió fotos, photos=[]. " +
   "Servicios o cosas «a cotizar»: pregunta lo necesario (qué necesita, dónde, cuándo) y luego pon handoff=true para que el dueño le dé precio. " +
   "Pagos: puedes decir las formas de pago; nunca pidas datos de tarjeta ni contraseñas y nunca confirmes que un pago llegó. " +
   "Pon handoff=true también si el cliente se queja, está molesto, pide hablar con una persona, quiere negociar precio, pide devolución " +
@@ -82,7 +95,8 @@ export async function customerReply(b: BusinessRow, items: Service[], history: C
     user: `Plática hasta ahora (el último mensaje es el que contestas):\n${history.map((m) => `${who[m.author] ?? m.author}: ${m.body}`).join("\n")}`,
     schema: ReplySchema,
     jsonHint:
-      'Formato: {"reply": "...", "handoff": false, "order": null o [{"ref": "P1", "qty": 2, "options": {"Talla": "M"}}], "customer_name": null}',
+      'Formato: {"reply": "...", "handoff": false, "order": null o [{"ref": "P1", "qty": 2, "options": {"Talla": "M"}}], "customer_name": null, ' +
+      '"delivery": null o {"fulfillment": "delivery", "address": "...", "payment": "efectivo"}, "photos": []}',
     maxTokens: 700,
     temperature: 0.5,
   });

@@ -24,11 +24,11 @@ export function validTwilioSignature(url: string, params: Record<string, string>
 // (Twilio acepta el envío y falla después, así que hay que revisarlo antes de mandar.)
 export const WINDOW_MS = 24 * 3600 * 1000;
 
-export async function sendWhatsApp(from: string, to: string, body: string) {
+export async function sendWhatsApp(from: string, to: string, body: string, mediaUrl?: string) {
   const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${SID()}/Messages.json`, {
     method: "POST",
     headers: { Authorization: auth(), "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ From: `whatsapp:${from}`, To: `whatsapp:${to}`, Body: body.slice(0, 1600) }),
+    body: new URLSearchParams({ From: `whatsapp:${from}`, To: `whatsapp:${to}`, Body: body.slice(0, 1600), ...(mediaUrl ? { MediaUrl: mediaUrl } : {}) }),
     signal: AbortSignal.timeout(15_000),
   });
   const json = (await res.json().catch(() => ({}))) as { sid?: string; code?: number; message?: string };

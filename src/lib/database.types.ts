@@ -291,7 +291,26 @@ export type Database = {
           created_at: string;
           updated_at: string;
         },
-        { business_id: string; kind: string; items: Json; currency: string; contact_id?: string | null; status?: string; total?: number | null; note?: string | null; updated_at?: string }
+        {
+          business_id: string;
+          kind: string;
+          items: Json;
+          currency: string;
+          contact_id?: string | null;
+          status?: string;
+          total?: number | null;
+          note?: string | null;
+          updated_at?: string;
+          number?: number | null;
+          customer_name?: string | null;
+          customer_phone?: string | null;
+          customer_email?: string | null;
+          fulfillment?: string | null;
+          address?: string | null;
+          payment_method?: string | null;
+          subtotal?: number | null;
+          delivery_fee?: number | null;
+        }
       >;
       whatsapp_lines: Table<{ number: string; business_id: string; created_at: string }, { number: string; business_id: string }>;
     };

@@ -1,4 +1,6 @@
 import "server-only";
+import { publicAssetUrl } from "@/lib/business";
+import { checkoutSettings, deliveryFee } from "@/lib/checkout";
 import { customerReply, orderFromReply } from "@/lib/nuna-whatsapp";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { transcribe } from "@/lib/voice-ai";
@@ -93,12 +95,40 @@ export async function handleIncoming(p: Record<string, string>) {
   if (!sid) return;
   await db.from("messages").insert({ business_id: b.id, conversation_id: conv.id, direction: "out", author: "nuna", channel: "whatsapp", body: reply, external_id: sid });
 
+  // Fotos que pidió el cliente (de su catálogo, máximo 3).
+  for (const r of (out?.photos ?? []).slice(0, 3)) {
+    const item = catalog[Number(r.replace(/\D/g, "")) - 1];
+    if (!item?.image_path) continue;
+    const photoSid = await sendWhatsApp(to, from, item.name, publicAssetUrl(item.image_path)).catch((e) => (console.error("WhatsApp: foto no enviada:", e), null));
+    if (photoSid) await db.from("messages").insert({ business_id: b.id, conversation_id: conv.id, direction: "out", author: "nuna", channel: "whatsapp", body: `[foto: ${item.name}]`, external_id: photoSid });
+  }
+
   if (out?.order?.length) {
     const o = orderFromReply(out.order, catalog);
     if (o.lines.length) {
+      const d = out.delivery;
+      const fulfillment = o.kind === "order" ? (d?.fulfillment ?? null) : null;
+      const fee = fulfillment === "delivery" && o.total !== null ? deliveryFee(checkoutSettings(b.checkout, b.offers_delivery), o.total) : null;
+      const { data: last } = await db.from("orders").select("number").eq("business_id", b.id).order("number", { ascending: false, nullsFirst: false }).limit(1).maybeSingle();
       const { data: order } = await db
         .from("orders")
-        .insert({ business_id: b.id, contact_id: contact.id, kind: o.kind, items: o.lines, total: o.total, currency: b.currency, note: "Pedido por WhatsApp" })
+        .insert({
+          business_id: b.id,
+          contact_id: contact.id,
+          number: (last?.number ?? 0) + 1,
+          kind: o.kind,
+          items: o.lines,
+          subtotal: o.total,
+          delivery_fee: fee,
+          total: o.total === null ? null : o.total + (fee ?? 0),
+          currency: b.currency,
+          note: "Pedido por WhatsApp",
+          customer_name: (out.customer_name ?? contact.name).slice(0, 120),
+          customer_phone: from,
+          fulfillment,
+          address: fulfillment === "delivery" ? (d?.address?.slice(0, 300) ?? null) : null,
+          payment_method: d?.payment?.slice(0, 60) ?? null,
+        })
         .select("id")
         .single();
       if (order) await db.from("audit_log").insert({ business_id: b.id, actor: "nuna", action: "order.created_from_whatsapp", entity: "orders", entity_id: order.id });
