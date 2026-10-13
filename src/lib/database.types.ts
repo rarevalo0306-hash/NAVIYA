@@ -198,6 +198,8 @@ export type Database = {
           stage_id: string | null;
           source_channel: string | null;
           interest: string | null;
+          notes: string | null;
+          follow_up_on: string | null;
           custom_fields: Json;
           created_at: string;
           updated_at: string;
@@ -211,6 +213,8 @@ export type Database = {
           stage_id?: string | null;
           source_channel?: string | null;
           interest?: string | null;
+          notes?: string | null;
+          follow_up_on?: string | null;
           custom_fields?: Json;
         }
       >;

@@ -72,3 +72,16 @@ export async function moveContact(contactId: string, stageId: string) {
   });
   revalidatePath("/panel");
 }
+
+// Nota y próximo seguimiento de un cliente.
+export async function updateContact(contactId: string, formData: FormData) {
+  const { supabase, business } = await requireBusiness();
+  const notes = String(formData.get("notes") ?? "").trim().slice(0, 2000) || null;
+  const date = String(formData.get("follow_up_on") ?? "");
+  await supabase
+    .from("contacts")
+    .update({ notes, follow_up_on: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null })
+    .eq("id", contactId)
+    .eq("business_id", business.id);
+  revalidatePath("/panel");
+}

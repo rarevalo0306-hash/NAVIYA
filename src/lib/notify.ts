@@ -186,7 +186,7 @@ export async function notifyHandoff(businessId: string, customer: string, lastMe
       [`Nuna te pasó una plática: <strong>${esc(customer)}</strong> necesita que le contestes tú.`, `Último mensaje: «${esc(lastMessage.slice(0, 300))}»`, `<a href="${APP}/panel/mensajes">Contestar desde mi panel</a>`],
       "Orbusiness",
     );
-    await whatsappOwner(biz.phone, process.env.TWILIO_TEMPLATE_OWNER_ALERT, { "1": "Un cliente te necesita", "2": customer, "3": `${APP}/panel/mensajes` });
+    await whatsappOwner(biz.phone, process.env.TWILIO_TEMPLATE_OWNER_ALERT, { "1": "Un mensaje que te necesita", "2": customer, "3": `${APP}/panel/mensajes` });
   } catch (e) {
     console.error("Aviso de plática:", e);
   }
