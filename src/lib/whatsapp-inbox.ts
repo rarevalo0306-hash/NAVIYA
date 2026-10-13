@@ -1,6 +1,7 @@
 import "server-only";
 import { publicAssetUrl } from "@/lib/business";
 import { checkoutSettings, deliveryFee } from "@/lib/checkout";
+import { notifyHandoff, notifyOrder } from "@/lib/notify";
 import { customerReply, orderFromReply } from "@/lib/nuna-whatsapp";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { transcribe } from "@/lib/voice-ai";
@@ -80,13 +81,14 @@ export async function handleIncoming(p: Record<string, string>) {
   const { count } = await db.from("audit_log").select("id", { count: "exact", head: true }).eq("business_id", b.id).eq("action", "whatsapp.nuna_reply").gte("created_at", since);
   if ((count ?? 0) >= NUNA_DAILY) return console.error("WhatsApp: Nuna llegó a su tope diario en", b.id);
 
-  const [{ data: items }, { data: history }] = await Promise.all([
+  const [{ data: items }, { data: history }, { data: site }] = await Promise.all([
     db.from("services").select("*").eq("business_id", b.id).eq("active", true).order("sort").limit(120),
     db.from("messages").select("author, body").eq("conversation_id", conv.id).order("created_at", { ascending: false }).limit(24),
+    db.from("websites").select("subdomain").eq("business_id", b.id).eq("status", "published").maybeSingle(),
   ]);
   const catalog = items ?? [];
   const started = Date.now();
-  const out = await customerReply(b, catalog, (history ?? []).reverse());
+  const out = await customerReply(b, catalog, (history ?? []).reverse(), site?.subdomain ? `https://orbusiness.app/sitio/${site.subdomain}` : null);
   console.log(`WhatsApp: Nuna pensó en ${Date.now() - started} ms`);
 
   // Si la IA falla, el cliente no se queda sin respuesta y el dueño queda avisado en su panel.
@@ -131,10 +133,28 @@ export async function handleIncoming(p: Record<string, string>) {
         })
         .select("id")
         .single();
-      if (order) await db.from("audit_log").insert({ business_id: b.id, actor: "nuna", action: "order.created_from_whatsapp", entity: "orders", entity_id: order.id });
+      if (order) {
+        await db.from("audit_log").insert({ business_id: b.id, actor: "nuna", action: "order.created_from_whatsapp", entity: "orders", entity_id: order.id });
+        await notifyOrder({
+          businessId: b.id,
+          number: (last?.number ?? 0) + 1,
+          kind: o.kind,
+          items: o.lines,
+          total: o.total === null ? null : o.total + (fee ?? 0),
+          deliveryFee: fee,
+          currency: b.currency,
+          fulfillment,
+          address: d?.address ?? null,
+          payment: d?.payment ?? null,
+          paymentNote: null,
+          customer: { name: out.customer_name ?? contact.name, phone: from, email: null },
+          channel: "whatsapp",
+        });
+      }
     }
   }
   const handoff = !out || out.handoff; // con un pedido Nuna sigue atendiendo: el pedido ya aparece en Pedidos
+  if (handoff) await notifyHandoff(b.id, out?.customer_name ?? contact.name, text);
   await db
     .from("conversations")
     .update({ last_message_at: new Date().toISOString(), ...(handoff ? { status: "needs_owner" } : {}) })

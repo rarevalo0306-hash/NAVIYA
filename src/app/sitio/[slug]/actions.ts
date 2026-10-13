@@ -1,6 +1,8 @@
 "use server";
 
+import { after } from "next/server";
 import { z } from "zod";
+import { notifyBooking, notifyOrder } from "@/lib/notify";
 import { createClient } from "@/lib/supabase/server";
 
 export type LeadState = { ok?: boolean; error?: string };
@@ -81,7 +83,26 @@ export async function placeOrder(slug: string, input: OrderInput): Promise<{ ok:
     p_payment: o.payment,
   });
   if (error) return { error: ERRORS.find(([k]) => error.message.includes(k))?.[1] ?? "No pudimos enviar tu pedido. Intenta de nuevo." };
-  return { ok: data as unknown as OrderResult };
+  const { business_id, items, address, ...result } = data as unknown as OrderResult & { business_id: string; items: { name: string; qty: number; options: Record<string, string> }[]; address: string | null };
+  // Avisos al dueño y confirmación al cliente, sin hacerlo esperar.
+  after(() =>
+    notifyOrder({
+      businessId: business_id,
+      number: result.number,
+      kind: result.kind,
+      items,
+      total: result.total,
+      deliveryFee: result.delivery_fee,
+      currency: result.currency,
+      fulfillment: result.fulfillment,
+      address,
+      payment: result.payment,
+      paymentNote: result.payment_note,
+      customer: { name: o.name, phone: o.phone, email: o.email },
+      channel: "web",
+    }),
+  );
+  return { ok: result };
 }
 
 // ---------- Citas ----------
@@ -121,5 +142,9 @@ export async function bookAppointment(slug: string, input: z.infer<typeof Bookin
     if (error.message.includes("slot taken")) return { error: "Ese horario se acaba de ocupar. Elige otro, por favor." };
     return { error: "No pudimos agendar tu cita. Intenta de nuevo." };
   }
-  return { ok: data as unknown as BookingResult };
+  const { business_id, ...result } = data as unknown as BookingResult & { business_id: string };
+  after(() =>
+    notifyBooking({ businessId: business_id, service: result.service, startsAt: result.starts_at, tz: result.tz, customer: { name: b.name, phone: b.phone, email: b.email } }),
+  );
+  return { ok: result };
 }

@@ -42,3 +42,16 @@ export async function twilioMedia(url: string) {
   if (!res.ok) throw new Error(`Twilio media ${res.status}`);
   return new Blob([await res.arrayBuffer()], { type: res.headers.get("content-type") ?? "application/octet-stream" });
 }
+
+// Mensaje con plantilla aprobada por Meta (para escribir primero: avisos al dueño, confirmaciones de cita).
+// Sale del número de Orbusiness (TWILIO_ALERTS_FROM), dueño de las plantillas.
+export async function sendTemplate(to: string, contentSid: string, vars: Record<string, string>) {
+  const from = process.env.TWILIO_ALERTS_FROM?.trim() || "+17863042801";
+  const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${SID()}/Messages.json`, {
+    method: "POST",
+    headers: { Authorization: auth(), "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ From: `whatsapp:${from}`, To: `whatsapp:${to}`, ContentSid: contentSid, ContentVariables: JSON.stringify(vars) }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) throw new Error(`Twilio ${res.status}: ${(await res.text()).slice(0, 200)}`);
+}
