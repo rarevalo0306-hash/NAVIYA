@@ -34,6 +34,11 @@ export default async function SellPage() {
           </Link>
         )}
         <ListImport />
+        {kinds.includes("product") && (
+          <Link href="/panel/vender/entrega" className="inline-flex min-h-12 items-center rounded-full border border-line px-5 font-semibold transition hover:bg-panel">
+            Entrega y pago
+          </Link>
+        )}
         <span className="text-sm text-muted">
           {items.length} de {MAX_ITEMS}
         </span>

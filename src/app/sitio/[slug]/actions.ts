@@ -26,37 +26,60 @@ export async function submitLead(slug: string, _prev: LeadState, formData: FormD
   return { ok: true };
 }
 
-const Lines = z
-  .array(z.object({ id: z.string().uuid(), qty: z.number().int().min(1).max(99), options: z.record(z.string(), z.string().max(40)) }))
-  .min(1)
-  .max(50);
+const Order = z.object({
+  name: z.string().trim().min(1).max(120),
+  phone: z.string().trim().min(6).max(40),
+  email: z.string().trim().email().max(200),
+  note: z.string().trim().max(1000),
+  fulfillment: z.enum(["delivery", "pickup", ""]),
+  address: z.string().trim().max(300),
+  payment: z.string().trim().max(60),
+  items: z
+    .array(z.object({ id: z.string().uuid(), qty: z.number().int().min(1).max(99), options: z.record(z.string(), z.string().max(40)) }))
+    .min(1)
+    .max(50),
+});
+export type OrderInput = z.infer<typeof Order>;
+export type OrderResult = {
+  number: number;
+  kind: "order" | "quote";
+  subtotal: number | null;
+  delivery_fee: number | null;
+  total: number | null;
+  currency: string;
+  fulfillment: "delivery" | "pickup" | null;
+  payment: string | null;
+  payment_note: string | null;
+  pickup_note: string | null;
+};
 
-// Pedido o cotización desde la página: la base revisa cada producto y pone los precios (nunca los del navegador).
-export async function submitOrder(slug: string, _prev: LeadState, formData: FormData): Promise<LeadState> {
-  const value = (k: string) => String(formData.get(k) ?? "").trim();
-  const name = value("name");
-  const phone = value("phone");
-  const email = value("email");
-  if (!name) return { error: "Escribe tu nombre." };
-  if (!phone && !email) return { error: "Déjanos un teléfono o un correo para contactarte." };
-  let items;
-  try {
-    items = Lines.parse(JSON.parse(value("items")));
-  } catch {
-    return { error: "Tu pedido está vacío." };
-  }
+const ERRORS: [string, string][] = [
+  ["item not available", "Algo de tu pedido ya no está disponible. Regresa a la tienda y revisa tu carrito."],
+  ["address required", "Escribe la dirección de entrega."],
+  ["email required", "Escribe un correo válido."],
+  ["phone required", "Escribe tu teléfono o WhatsApp."],
+  ["payment method invalid", "Elige cómo vas a pagar."],
+  ["fulfillment required", "Elige si te lo llevamos o pasas a recogerlo."],
+  ["not offered", "Esa forma de entrega ya no está disponible. Elige otra."],
+];
 
+// Checkout como visitante: la base revisa cada producto y pone precios y envío (nunca los del navegador).
+export async function placeOrder(slug: string, input: OrderInput): Promise<{ ok: OrderResult } | { error: string }> {
+  const parsed = Order.safeParse(input);
+  if (!parsed.success) return { error: "Revisa tus datos: nombre, teléfono y un correo válido." };
+  const o = parsed.data;
   const supabase = await createClient();
-  const { error } = await supabase.rpc("submit_order", {
+  const { data, error } = await supabase.rpc("place_order", {
     p_subdomain: slug,
-    p_name: name,
-    p_phone: phone,
-    p_email: email,
-    p_note: value("note"),
-    p_items: items,
+    p_name: o.name,
+    p_phone: o.phone,
+    p_email: o.email,
+    p_note: o.note,
+    p_items: o.items,
+    p_fulfillment: o.fulfillment,
+    p_address: o.address,
+    p_payment: o.payment,
   });
-  if (error) {
-    return { error: error.message.includes("item not available") ? "Algo de tu pedido ya no está disponible. Recarga la página." : "No pudimos enviar tu pedido. Intenta de nuevo." };
-  }
-  return { ok: true };
+  if (error) return { error: ERRORS.find(([k]) => error.message.includes(k))?.[1] ?? "No pudimos enviar tu pedido. Intenta de nuevo." };
+  return { ok: data as unknown as OrderResult };
 }

@@ -51,6 +51,7 @@ export type Database = {
           onboarding_step: string;
           status: string;
           nuna_replies: boolean;
+          checkout: Json;
           created_at: string;
           updated_at: string;
         },
@@ -84,6 +85,7 @@ export type Database = {
           onboarding_step?: string;
           status?: string;
           nuna_replies?: boolean;
+          checkout?: Json;
         }
       >;
       memberships: Table<
@@ -277,6 +279,15 @@ export type Database = {
           total: number | null;
           currency: string;
           note: string | null;
+          number: number | null;
+          customer_name: string | null;
+          customer_phone: string | null;
+          customer_email: string | null;
+          fulfillment: string | null;
+          address: string | null;
+          payment_method: string | null;
+          subtotal: number | null;
+          delivery_fee: number | null;
           created_at: string;
           updated_at: string;
         },
@@ -299,9 +310,19 @@ export type Database = {
         };
         Returns: boolean;
       };
-      submit_order: {
-        Args: { p_subdomain: string; p_name: string; p_phone: string; p_email: string; p_note: string; p_items: Json };
-        Returns: string;
+      place_order: {
+        Args: {
+          p_subdomain: string;
+          p_name: string;
+          p_phone: string;
+          p_email: string;
+          p_note: string;
+          p_items: Json;
+          p_fulfillment: string;
+          p_address: string;
+          p_payment: string;
+        };
+        Returns: Json;
       };
     };
     Enums: { [_ in never]: never };

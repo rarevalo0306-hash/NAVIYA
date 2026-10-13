@@ -33,19 +33,21 @@ export default async function OrdersPage() {
         {orders.map((o) => {
           const contact = o.contacts as unknown as { name: string; phone: string | null; email: string | null } | null;
           const lines = (Array.isArray(o.items) ? o.items : []) as unknown as Line[];
-          const digits = contact?.phone?.replace(/\D/g, "");
+          const phone = o.customer_phone ?? contact?.phone ?? null;
+          const digits = phone?.replace(/\D/g, "");
           return (
             <li key={o.id} className="flex flex-col gap-4 rounded-[24px] border border-white/[0.06] bg-panel p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex flex-col gap-1">
                   <span className="text-sm text-muted">
-                    {o.kind === "order" ? "Pedido" : "Cotización"} · {when.format(new Date(o.created_at))}
+                    {o.kind === "order" ? "Pedido" : "Cotización"}
+                    {o.number ? ` #${o.number}` : ""} · {when.format(new Date(o.created_at))}
                   </span>
                   <span className="text-lg font-semibold">{contact?.name ?? "Cliente"}</span>
                   <span className="flex flex-wrap gap-3 text-sm">
                     {digits && (
                       <a href={`https://wa.me/${digits}`} target="_blank" rel="noopener" className="font-semibold text-lime underline-offset-4 hover:underline">
-                        WhatsApp {contact?.phone}
+                        WhatsApp {phone}
                       </a>
                     )}
                     {contact?.email && (
@@ -68,8 +70,23 @@ export default async function OrdersPage() {
                   </li>
                 ))}
               </ul>
+              {(o.fulfillment || o.payment_method) && (
+                <p className="flex flex-col gap-1 text-sm">
+                  {o.fulfillment === "delivery" && <span>🚚 Entrega a domicilio: {o.address}</span>}
+                  {o.fulfillment === "pickup" && <span>🏪 Recoge en el local</span>}
+                  {o.payment_method && <span>💳 Paga con: {o.payment_method}</span>}
+                </p>
+              )}
               {o.note && <p className="rounded-[16px] bg-panel-2 p-3 text-sm">Nota: {o.note}</p>}
-              {o.total !== null && <p className="text-right font-semibold">Total: {money(Number(o.total), o.currency)}</p>}
+              {o.total !== null && (
+                <div className="flex flex-col items-end gap-0.5 text-sm">
+                  {o.subtotal !== null && o.fulfillment === "delivery" && <span className="text-muted">Subtotal: {money(Number(o.subtotal), o.currency)}</span>}
+                  {o.fulfillment === "delivery" && (
+                    <span className="text-muted">Envío: {o.delivery_fee === null ? "por confirmar" : money(Number(o.delivery_fee), o.currency)}</span>
+                  )}
+                  <span className="text-base font-semibold">Total: {money(Number(o.total), o.currency)}</span>
+                </div>
+              )}
             </li>
           );
         })}

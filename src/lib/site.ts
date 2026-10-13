@@ -4,6 +4,7 @@
 
 import type { BrandKit } from "@/lib/brand";
 import { publicAssetUrl } from "@/lib/business";
+import { checkoutSettings, type CheckoutSettings } from "@/lib/checkout";
 import type { Tables } from "@/lib/database.types";
 import { norm } from "@/lib/interview";
 import { marketFor, say } from "@/lib/markets";
@@ -44,6 +45,7 @@ export type SiteContent = {
   whatsappFirst?: boolean;
   address?: string | null;
   paymentMethods?: string[];
+  checkout?: CheckoutSettings; // entrega, recoger, envío y cómo pagar (páginas publicadas antes no lo traen)
   logoUrl: string | null;
   photos: string[];
   kind?: string | null; // products | services | both
@@ -187,6 +189,7 @@ export function buildSiteContent(
     whatsappFirst: (market?.channels[0] ?? "WhatsApp") === "WhatsApp",
     address: b.address,
     paymentMethods: b.payment_methods,
+    checkout: checkoutSettings(b.checkout, b.offers_delivery),
     logoUrl,
     photos,
     kind: b.business_type,

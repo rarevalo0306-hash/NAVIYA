@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { storedKit } from "@/lib/brand";
+import { checkoutSettings } from "@/lib/checkout";
 import type { Tables } from "@/lib/database.types";
 import { money, type BusinessRow } from "@/lib/interview";
 import { marketContext, marketFor } from "@/lib/markets";
@@ -33,13 +34,17 @@ function itemLine(s: Service, i: number, currency: string) {
 
 function businessFacts(b: BusinessRow, items: Service[]) {
   const kit = storedKit(b.brand_kit, b);
+  const co = checkoutSettings(b.checkout, b.offers_delivery);
+  const rates = co.rates.map((r) => (r.from ? `desde ${money(r.from, b.currency)} de compra: ${r.fee ? money(r.fee, b.currency) : "gratis"}` : r.fee ? money(r.fee, b.currency) : "gratis")).join("; ");
   return [
     `Negocio: ${b.name}${b.industry ? ` (${b.industry})` : ""}`,
     b.zone && `Zona: ${b.zone}`,
     b.address && `Dirección: ${b.address}`,
     b.hours && `Horario: ${b.hours}`,
     b.phone && `Teléfono del negocio: ${b.phone}`,
-    `Entrega a domicilio: ${b.offers_delivery ? "sí" : b.offers_delivery === false ? "no" : "no se sabe"}`,
+    `Entrega a domicilio: ${co.delivery ? `sí${co.deliveryNote ? ` (${co.deliveryNote})` : ""}; costo de envío: ${rates || "lo confirma el negocio"}` : "no"}`,
+    co.pickup && `Recoger en el local: sí${co.pickupNote ? ` (${co.pickupNote})` : ""}`,
+    co.paymentNote && `Cómo pagar: ${co.paymentNote}`,
     b.payment_methods?.length && `Formas de pago: ${b.payment_methods.join(", ")}`,
     b.visit_before_quote && "En trabajos, primero visitan sin costo y después dan el precio.",
     kit?.tone && `Tono de la marca: ${kit.tone}`,
@@ -83,7 +88,7 @@ export async function customerReply(b: BusinessRow, items: Service[], history: C
   });
 }
 
-// Convierte el pedido de Nuna (refs del catálogo) en renglones con los precios de la base, igual que submit_order.
+// Convierte el pedido de Nuna (refs del catálogo) en renglones con los precios de la base, igual que place_order.
 export function orderFromReply(order: NonNullable<CustomerReply["order"]>, items: Service[]) {
   const lines = order
     .map((o) => ({ s: items[Number(o.ref.replace(/\D/g, "")) - 1], o }))

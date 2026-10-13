@@ -710,6 +710,8 @@ export function SiteView({
   leadForm,
   orderButton,
   cart,
+  main,
+  home = "",
   template,
   preview = false,
 }: {
@@ -717,6 +719,8 @@ export function SiteView({
   leadForm?: ReactNode;
   orderButton?: (s: SiteItem) => ReactNode; // botón "Agregar al pedido" de cada producto (solo en la página pública)
   cart?: ReactNode; // barra y hoja del pedido
+  main?: ReactNode; // otra pantalla con el mismo encabezado y diseño (por ejemplo, el checkout)
+  home?: string; // con main: dirección de la página principal, para que el menú lleve de vuelta
   template?: string; // para ver otra plantilla sin cambiar la guardada
   preview?: boolean; // dentro de la app: sin botones flotantes
 }) {
@@ -756,29 +760,33 @@ export function SiteView({
           <Logo c={c} onDark={dark} />
         </div>
         <nav aria-label="Secciones" className="hidden items-center gap-7 text-sm font-medium text-[var(--muted)] md:flex">
-          {site.services.length > 0 && <a href="#servicios" className="hover:text-[var(--ink)]">Servicios</a>}
-          {kit?.base?.story && tpl.about !== "ninguno" && <a href="#nosotros" className="hover:text-[var(--ink)]">Nosotros</a>}
-          <a href="#contacto" className="hover:text-[var(--ink)]">Contacto</a>
+          {site.services.length > 0 && <a href={`${home}#servicios`} className="hover:text-[var(--ink)]">Servicios</a>}
+          {kit?.base?.story && tpl.about !== "ninguno" && <a href={`${home}#nosotros`} className="hover:text-[var(--ink)]">Nosotros</a>}
+          <a href={`${home}#contacto`} className="hover:text-[var(--ink)]">Contacto</a>
         </nav>
         {c.waFirst && wa ? (
           <a href={wa} target="_blank" rel="noopener" className={`${btnWa} min-h-11 px-4 text-sm`}>
             <WaIcon className="size-4" /> <span className="hidden sm:inline">WhatsApp</span>
           </a>
         ) : (
-          <a href="#contacto" className={`${btnPrimary} min-h-11 px-4 text-sm`}>
+          <a href={`${home}#contacto`} className={`${btnPrimary} min-h-11 px-4 text-sm`}>
             {c.cta}
           </a>
         )}
       </header>
 
-      <main>
-        <Hero c={c} />
-        <Highlights c={c} />
-        <Services c={c} />
-        <About c={c} />
-        <Gallery c={c} />
-        <Contact c={c} leadForm={leadForm} />
-      </main>
+      {main ? (
+        <main className={`${shell} py-10`}>{main}</main>
+      ) : (
+        <main>
+          <Hero c={c} />
+          <Highlights c={c} />
+          <Services c={c} />
+          <About c={c} />
+          <Gallery c={c} />
+          <Contact c={c} leadForm={leadForm} />
+        </main>
+      )}
 
       <footer className={`${shell} flex flex-col gap-6 border-t border-[var(--line)] py-10 sm:flex-row sm:items-end sm:justify-between`}>
         <div className="flex flex-col gap-2">

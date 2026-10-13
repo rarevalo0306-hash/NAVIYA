@@ -31,8 +31,8 @@ export default async function PublicSitePage(props: PageProps<"/sitio/[slug]">) 
     <SiteView
       site={site}
       leadForm={<LeadForm slug={slug} cta={site.copy?.cta ?? site.ctaLabel} copy={site.copy} />}
-      orderButton={(s) => <AddToOrder item={s} />}
-      cart={<OrderBar slug={slug} currency={site.currency} copy={site.copy} />}
+      orderButton={(s) => <AddToOrder item={s} slug={slug} />}
+      cart={<OrderBar slug={slug} currency={site.currency} />}
     />
   );
 }
