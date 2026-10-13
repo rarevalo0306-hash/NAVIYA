@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { NunaMark, type NunaState } from "@/components/nuna-mark";
 import { OpenAIAgentVoice } from "@/lib/voice-openai-agent";
-import { askNuna, startCompanionVoice } from "./companion-actions";
+import { askNuna, companionInstructions, companionSave, startCompanionVoice } from "./companion-actions";
 
 // Nuna acompaña al dueño en marca, página web, CRM y activar: abajo al centro, su logo animado y una
 // barra con escribir, hablar y minimizar (como un asistente flotante). Al llegar a cada paso deja un globito.
@@ -13,6 +13,9 @@ type Msg = { role: "owner" | "nuna"; text: string };
 const MIN_KEY = "orbusiness:nuna-minimizada";
 const POS_KEY = "orbusiness:nuna-posicion"; // dónde la dejó el dueño, en fracción de la pantalla
 const TIP_KEY = (step: string) => `orbusiness:nuna-tip:${step}`;
+// La entrevista por voz deja esta marca al terminar: aquí Nuna sigue hablando sin que el dueño toque nada.
+export const VOICE_CONTINUES = "orbusiness:nuna-voz-sigue";
+const STEP_LABEL: Record<string, string> = { marca: "Marca", web: "Página web", crm: "CRM", activar: "Activar" };
 const read = (key: string) => {
   try {
     return localStorage.getItem(key);
@@ -61,13 +64,33 @@ export function NunaCompanion({ tips, voice }: { tips: Record<string, string>; v
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [step, tip]);
 
-  // Al cambiar de paso, la voz se cierra (sus instrucciones eran del paso anterior).
+  // Al salir del alta, la voz se cierra.
+  useEffect(() => () => voiceRef.current?.close(), []);
+
+  // Al cambiar de paso con la voz abierta, la plática sigue: Nuna recibe lo de la pantalla nueva y la comenta.
+  // Si viene de la entrevista por voz, empieza a hablar sola.
+  const lastStep = useRef(step);
   useEffect(() => {
-    return () => {
-      voiceRef.current?.close();
-      voiceRef.current = null;
-    };
-  }, [step]);
+    if (!tip || lastStep.current === step) return;
+    lastStep.current = step;
+    const v = voiceRef.current;
+    if (v) {
+      void companionInstructions(step).then((text) => {
+        if (!text || voiceRef.current !== v) return;
+        v.updateInstructions(text);
+        v.nudge(`(El dueño pasó al paso «${STEP_LABEL[step] ?? step}». Dile en una o dos frases qué hay en esta pantalla y sigue la plática.)`);
+      });
+      return;
+    }
+    let continues = false;
+    try {
+      continues = sessionStorage.getItem(VOICE_CONTINUES) === "1";
+      sessionStorage.removeItem(VOICE_CONTINUES);
+    } catch {}
+    if (continues)
+      void toggleVoice(`(Acaban de terminar la entrevista por voz y el dueño llegó al paso «${STEP_LABEL[step] ?? step}». No lo saludes de nuevo: dile en una o dos frases qué hay en esta pantalla y qué le recomiendas hacer primero.)`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al cambiar de paso
+  }, [step, tip]);
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
@@ -157,7 +180,7 @@ export function NunaCompanion({ tips, voice }: { tips: Record<string, string>; v
     setPending(false);
   }
 
-  async function toggleVoice() {
+  async function toggleVoice(greeting = "hola") {
     if (voiceRef.current) {
       voiceRef.current.close();
       return;
@@ -168,7 +191,7 @@ export function NunaCompanion({ tips, voice }: { tips: Record<string, string>; v
     const v = new OpenAIAgentVoice({
       onSpeaking: setSpeaking,
       onListening: setListening,
-      onTool: async () => ({}),
+      onTool: async (name, args) => (name === "anotar" ? companionSave(args) : { error: "Herramienta desconocida" }),
       onTurn: (owner, said) =>
         setMessages((m) => [...m, ...(owner ? [{ role: "owner" as const, text: owner }] : []), ...(said ? [{ role: "nuna" as const, text: said }] : [])]),
       onClosed: () => {
@@ -184,7 +207,7 @@ export function NunaCompanion({ tips, voice }: { tips: Record<string, string>; v
     try {
       const s = await startCompanionVoice(step);
       if ("error" in s) throw new Error(s.error);
-      await v.connect(s.key, "hola");
+      await v.connect(s.key, greeting);
       if (voiceRef.current !== v) return v.close();
       setLive(true);
       if (!messages.length) setMessages([{ role: "nuna", text: tip }]);
@@ -309,7 +332,7 @@ export function NunaCompanion({ tips, voice }: { tips: Record<string, string>; v
             <span aria-hidden className="mx-1 h-7 w-px bg-line" />
             <button
               type="button"
-              onClick={toggleVoice}
+              onClick={() => void toggleVoice()}
               disabled={connecting}
               aria-pressed={live}
               aria-label={live ? "Terminar la voz con Nuna" : "Hablar con Nuna"}

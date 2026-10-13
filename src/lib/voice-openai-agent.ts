@@ -74,6 +74,18 @@ export class OpenAIAgentVoice {
     else this.send({ type: "response.create" });
   }
 
+  // Cambiar sus instrucciones sin cortar la plática (por ejemplo, al pasar a otro paso del alta).
+  updateInstructions(instructions: string) {
+    this.send({ type: "session.update", session: { type: "realtime", instructions } });
+  }
+
+  // Un aviso para ella que no dijo el dueño (por ejemplo, «pasó al paso Web»): reacciona hablando.
+  nudge(text: string) {
+    this.send({ type: "conversation.item.create", item: { type: "message", role: "user", content: [{ type: "input_text", text }] } });
+    if (this.open || this.calls) this.wantReply = true;
+    else this.send({ type: "response.create" });
+  }
+
   // Silenciar el micrófono (botón de micrófono, como en ChatGPT).
   setMuted(muted: boolean) {
     this.mic?.getTracks().forEach((t) => (t.enabled = !muted));

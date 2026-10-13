@@ -9,6 +9,7 @@ import { GeminiVoice } from "@/lib/voice-gemini";
 import { OpenAIAgentVoice } from "@/lib/voice-openai-agent";
 import { canRealtime, RealtimeVoice } from "@/lib/voice-realtime";
 import { canRecord, startRecording, type RecorderHandle } from "@/lib/voice-recorder";
+import { VOICE_CONTINUES } from "../nuna-companion";
 import { answerInterview, startVoice, voiceLog, voiceSave } from "./actions";
 
 type Message = { id: string; role: string; content: string; step_key?: string | null };
@@ -67,6 +68,13 @@ function TypeText({ text, animate, onTick }: { text: string; animate: boolean; o
 // Voz de la entrevista. "Conversar por voz" usa la voz en tiempo real de OpenAI (realtime): Nuna
 // habla con voz natural y escucha continuamente. Si no se puede, usa la voz con IA por partes
 // (aiVoice: audio + grabación) y, sin IA, la voz y el reconocimiento del navegador.
+// Si la entrevista terminó por voz, Nuna sigue hablando en el siguiente paso (la recoge nuna-companion).
+function keepTalking(voice: boolean) {
+  try {
+    if (voice) sessionStorage.setItem(VOICE_CONTINUES, "1");
+  } catch {}
+}
+
 export function InterviewChat({
   messages,
   open,
@@ -400,7 +408,7 @@ export function InterviewChat({
     if (geminiRef.current) return; // con Gemini, lo que dice ya sonó: el mensaje solo deja la plática escrita
     const fresh = messages.slice(from + 1).filter((m) => m.role !== "owner");
     // Nuna cerró la entrevista: cuando termine de despedirse, se pasa solo al siguiente paso.
-    const leave = nextHref && fresh.some((m) => m.step_key === "done") ? () => (stopAll(), router.push(nextHref)) : null;
+    const leave = nextHref && fresh.some((m) => m.step_key === "done") ? () => (keepTalking(voiceModeRef.current), stopAll(), router.push(nextHref)) : null;
     if (!voiceModeRef.current) {
       if (leave) leaveTimer.current = setTimeout(leave, 9000); // tiempo para leer la despedida
       return;
@@ -531,7 +539,7 @@ export function InterviewChat({
         const turn = { owner, nuna: said, keys, end: ending };
         if (owner) keys = []; // lo anotado se marca en el mensaje del dueño (si aún no hay, espera al siguiente)
         void voiceLog(turn).then((r) => {
-          if (r.done && geminiRef.current === gv) gv.whenQuiet(() => (stopAll(), router.push("/onboarding/marca")));
+          if (r.done && geminiRef.current === gv) gv.whenQuiet(() => (keepTalking(true), stopAll(), router.push("/onboarding/marca")));
         });
       },
       onClosed: (reason) => {

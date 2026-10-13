@@ -2,10 +2,11 @@ import "server-only";
 import { z } from "zod";
 import { brandKitPrice } from "@/lib/brand-store";
 import { ORBUSINESS_PITCH, ownerForm, type BusinessRow } from "@/lib/interview";
-import { NUNA_PERSONA, VOICE_STYLE, aiJson } from "@/lib/nuna";
+import { INTERVIEW_TOOLS } from "@/lib/interview-tools";
+import { FactsSchema, NUNA_PERSONA, VOICE_STYLE, aiJson } from "@/lib/nuna";
 
 // Nuna como acompañante después de la entrevista: está en cada paso (marca, página web, CRM y activar),
-// explica qué toca hacer y contesta dudas por escrito o por voz. Todavía no hace cambios por el dueño.
+// explica qué toca hacer, contesta dudas por escrito o por voz y corrige los datos del negocio.
 
 export const COMPANION_STEPS = ["marca", "web", "crm", "activar"] as const;
 export type CompanionStep = (typeof COMPANION_STEPS)[number];
@@ -48,45 +49,65 @@ export const STEP_GUIDE: Record<CompanionStep, { tip: string; context: () => str
   },
 };
 
-function companionSystem(b: BusinessRow, step: CompanionStep) {
+// Lo que el dueño puede corregir con Nuna en cualquier paso: los mismos datos de la entrevista,
+// menos los productos y servicios (esos se cambian en «Lo que vendes», con fotos y precios).
+export const COMPANION_TOOLS = [
+  {
+    ...INTERVIEW_TOOLS[0],
+    description:
+      "Guarda un dato del negocio que el dueño corrige o agrega ahora (su nombre, el del negocio, teléfono, horario, dirección, " +
+      "formas de pago, entrega, etc.). Manda solo lo que cambió. Los productos y servicios no se cambian aquí.",
+    parameters: {
+      ...INTERVIEW_TOOLS[0].parameters,
+      properties: Object.fromEntries(Object.entries(INTERVIEW_TOOLS[0].parameters.properties ?? {}).filter(([k]) => k !== "services")),
+    },
+  },
+];
+
+const CORRECTIONS =
+  "Puedes corregir los datos del negocio en cualquier momento, como lo haría una persona: si el dueño dice que algo está mal o cambió " +
+  "(por ejemplo «no me llamo José, me llamo Juan», otro teléfono, otro horario), guárdalo y confírmale con naturalidad que ya quedó (por ejemplo «¡Listo, Juan! Ya lo cambié»). " +
+  "Si no está claro qué quiere cambiar, pregúntale. Los productos y servicios no los cambias tú: dile que los cambie en «Lo que vendes» (o en la lista de esta página). " +
+  "Otras cosas (colores, publicar, comprar) todavía no las haces tú: dile qué botón tocar. ";
+
+function companionSystem(b: BusinessRow, step: CompanionStep, known: string[]) {
   const form = { tu: "tú", usted: "usted", vos: "vos" }[ownerForm(b)];
-  const facts = [
-    b.owner_name && `Dueño: ${b.owner_name}`,
-    b.name && b.name !== "Mi negocio" && `Negocio: ${b.name}`,
-    b.industry && `Giro: ${b.industry}`,
-    b.zone && `Zona: ${b.zone}`,
-  ].filter(Boolean);
   return (
     NUNA_PERSONA +
     `Qué hace Orbusiness: ${ORBUSINESS_PITCH} ` +
-    "La entrevista ya terminó: ahora acompañas al dueño en el resto del proceso (marca, página web, CRM y activar), como una guía amable que está a su lado. " +
+    "La entrevista ya terminó: ahora acompañas al dueño en el resto del proceso (marca, página web, CRM y activar), como una guía amable que está a su lado " +
+    "y que ya lo conoce: no vuelvas a presentarte ni a preguntar lo que ya sabes. " +
     `Ahora está aquí: ${STEP_GUIDE[step].context()} ` +
-    `Lo que sabes de su negocio: ${facts.join("; ") || "poco todavía"}. ` +
+    `Lo que sabes de su negocio (vale esto, aunque antes se haya dicho otra cosa): ${known.join("; ") || "poco todavía"}. ` +
     "Contesta sus dudas sobre esta pantalla, su negocio u Orbusiness en 1 a 3 oraciones, y dile qué botón tocar cuando ayude. " +
-    "Todavía no puedes hacer cambios por él (no cambias colores, no publicas ni compras): dile cómo hacerlo él en la pantalla. " +
+    CORRECTIONS +
     "Si no sabes algo de la pantalla, dilo con honestidad en vez de inventar. " +
     `Háblale de ${form}. `
   );
 }
 
-// Respuesta por escrito (con el cerebro de siempre).
-export async function companionReply(b: BusinessRow, step: CompanionStep, history: { role: "owner" | "nuna"; text: string }[], question: string) {
-  const out = await aiJson({
-    system: companionSystem(b, step),
+// Respuesta por escrito (con el cerebro de siempre). facts: solo los datos que el dueño corrigió o agregó en su último mensaje.
+export async function companionReply(b: BusinessRow, step: CompanionStep, known: string[], history: { role: "owner" | "nuna"; text: string }[], question: string) {
+  return aiJson({
+    system: companionSystem(b, step, known),
     user: [...history.map((m) => `${m.role === "owner" ? "Dueño" : "Nuna"}: ${m.text}`), `Dueño: ${question}`].join("\n"),
-    schema: z.object({ reply: z.string() }),
-    jsonHint: 'Formato: {"reply": "lo que le contestas"}',
-    maxTokens: 600,
-    temperature: 0.6,
+    schema: z.object({ reply: z.string(), facts: FactsSchema.catch(FactsSchema.parse({})) }),
+    jsonHint:
+      'Formato: {"reply": "lo que le contestas", "facts": {solo los datos que el dueño corrigió o agregó en su ÚLTIMO mensaje, con las claves ' +
+      "owner_name, business_name, country, city, business_type, industry, currency_choice, hours, phone, address, lead_sources, visit_before_quote, " +
+      'payment_timing, payment_methods, offers_delivery, has_recurring_clients, address_form, quote_requires_approval; las demás en null}}',
+    maxTokens: 800,
+    temperature: 0.5,
   });
-  return out?.reply.trim() || null;
 }
 
 // Instrucciones para platicar por voz en este paso.
-export function companionVoiceInstructions(b: BusinessRow, step: CompanionStep) {
+export function companionVoiceInstructions(b: BusinessRow, step: CompanionStep, known: string[]) {
   return (
-    companionSystem(b, step) +
+    companionSystem(b, step, known) +
     VOICE_STYLE +
-    "Cuando el dueño te diga «hola», salúdalo por su nombre en una frase y pregúntale en qué le ayudas con este paso (sin volver a presentarte)."
+    "Para guardar una corrección usa la herramienta «anotar» y después confírmale en una frase. " +
+    "Cuando el dueño te diga «hola», salúdalo por su nombre en una frase y pregúntale en qué le ayudas con este paso (sin volver a presentarte). " +
+    "Los mensajes entre paréntesis son avisos de la app, no del dueño (por ejemplo, que pasó a otro paso): sigue la plática con naturalidad, sin saludar de nuevo."
   );
 }
