@@ -10,6 +10,7 @@ export function PanelNav({ sitePath, done }: { sitePath: string | null; done: bo
     ...(done ? [{ href: "/panel", label: "Clientes" }] : [{ href: "/onboarding", label: "← Volver al alta" }]),
     { href: "/panel/mensajes", label: "Mensajes" },
     { href: "/panel/pedidos", label: "Pedidos" },
+    { href: "/panel/agenda", label: "Agenda" },
     { href: "/panel/vender", label: "Lo que vendes" },
     { href: sitePath ?? "/onboarding/web", label: "Mi página", external: Boolean(sitePath) },
     { href: "/onboarding/marca", label: "Mi marca" },

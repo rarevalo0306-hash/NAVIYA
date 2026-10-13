@@ -4,6 +4,7 @@
 
 import type { BrandKit } from "@/lib/brand";
 import { publicAssetUrl } from "@/lib/business";
+import { bookingSettings } from "@/lib/booking";
 import { checkoutSettings, type CheckoutSettings } from "@/lib/checkout";
 import type { Tables } from "@/lib/database.types";
 import { norm } from "@/lib/interview";
@@ -46,6 +47,7 @@ export type SiteContent = {
   address?: string | null;
   paymentMethods?: string[];
   checkout?: CheckoutSettings; // entrega, recoger, envío y cómo pagar (páginas publicadas antes no lo traen)
+  booking?: { enabled: boolean; tz: string }; // citas en línea para servicios
   logoUrl: string | null;
   photos: string[];
   kind?: string | null; // products | services | both
@@ -190,6 +192,7 @@ export function buildSiteContent(
     address: b.address,
     paymentMethods: b.payment_methods,
     checkout: checkoutSettings(b.checkout, b.offers_delivery),
+    booking: (({ enabled, tz }) => ({ enabled, tz }))(bookingSettings(b.booking, b.country_code)),
     logoUrl,
     photos,
     kind: b.business_type,

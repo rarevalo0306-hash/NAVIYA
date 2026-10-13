@@ -83,3 +83,43 @@ export async function placeOrder(slug: string, input: OrderInput): Promise<{ ok:
   if (error) return { error: ERRORS.find(([k]) => error.message.includes(k))?.[1] ?? "No pudimos enviar tu pedido. Intenta de nuevo." };
   return { ok: data as unknown as OrderResult };
 }
+
+// ---------- Citas ----------
+
+export async function getSlots(slug: string, serviceId: string, date: string): Promise<string[]> {
+  if (!z.string().uuid().safeParse(serviceId).success || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return [];
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("available_slots", { p_subdomain: slug, p_service: serviceId, p_date: date });
+  return (data ?? []) as string[];
+}
+
+const Booking = z.object({
+  service: z.string().uuid(),
+  start: z.string().datetime({ offset: true }),
+  name: z.string().trim().min(1).max(120),
+  phone: z.string().trim().min(6).max(40),
+  email: z.string().trim().email().max(200),
+  note: z.string().trim().max(1000),
+});
+export type BookingResult = { id: string; service: string; business: string; starts_at: string; ends_at: string; tz: string };
+
+export async function bookAppointment(slug: string, input: z.infer<typeof Booking>): Promise<{ ok: BookingResult } | { error: string }> {
+  const parsed = Booking.safeParse(input);
+  if (!parsed.success) return { error: "Revisa tus datos: nombre, teléfono y un correo válido." };
+  const b = parsed.data;
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("book_appointment", {
+    p_subdomain: slug,
+    p_service: b.service,
+    p_start: b.start,
+    p_name: b.name,
+    p_phone: b.phone,
+    p_email: b.email,
+    p_note: b.note,
+  });
+  if (error) {
+    if (error.message.includes("slot taken")) return { error: "Ese horario se acaba de ocupar. Elige otro, por favor." };
+    return { error: "No pudimos agendar tu cita. Intenta de nuevo." };
+  }
+  return { ok: data as unknown as BookingResult };
+}

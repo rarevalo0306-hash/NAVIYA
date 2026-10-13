@@ -52,6 +52,7 @@ export type Database = {
           status: string;
           nuna_replies: boolean;
           checkout: Json;
+          booking: Json;
           created_at: string;
           updated_at: string;
         },
@@ -86,6 +87,7 @@ export type Database = {
           status?: string;
           nuna_replies?: boolean;
           checkout?: Json;
+          booking?: Json;
         }
       >;
       memberships: Table<
@@ -313,6 +315,26 @@ export type Database = {
         }
       >;
       whatsapp_lines: Table<{ number: string; business_id: string; created_at: string }, { number: string; business_id: string }>;
+      appointments: Table<
+        {
+          id: string;
+          business_id: string;
+          contact_id: string | null;
+          service_id: string | null;
+          kind: string;
+          title: string;
+          starts_at: string;
+          ends_at: string;
+          status: string;
+          notes: string | null;
+          customer_name: string | null;
+          customer_phone: string | null;
+          customer_email: string | null;
+          source: string;
+          created_at: string;
+        },
+        { business_id: string; title: string; starts_at: string; ends_at: string; kind?: string; status?: string; notes?: string | null; contact_id?: string | null; service_id?: string | null; customer_name?: string | null; customer_phone?: string | null; customer_email?: string | null; source?: string }
+      >;
     };
     Views: { [_ in never]: never };
     Functions: {
@@ -328,6 +350,14 @@ export type Database = {
           p_message: string;
         };
         Returns: boolean;
+      };
+      available_slots: {
+        Args: { p_subdomain: string; p_service: string; p_date: string };
+        Returns: string[];
+      };
+      book_appointment: {
+        Args: { p_subdomain: string; p_service: string; p_start: string; p_name: string; p_phone: string; p_email: string; p_note: string };
+        Returns: Json;
       };
       place_order: {
         Args: {

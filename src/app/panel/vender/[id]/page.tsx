@@ -39,6 +39,7 @@ export default async function ItemPage(props: { params: Promise<{ id: string }>;
           description: item?.description ?? "",
           category: item?.category ?? "",
           variants: variantsText(item?.variants),
+          duration: item?.duration_minutes ? String(item.duration_minutes) : "",
           active: item?.active ?? true,
           imagePath: item?.image_path ?? null,
           originalPath: item?.image_original_path ?? null,

@@ -95,6 +95,7 @@ export type ItemInput = {
   description: string;
   category: string;
   variants: string;
+  duration: string; // minutos de la cita (solo servicios)
   active: boolean;
   imagePath: string | null;
   originalPath: string | null;
@@ -121,6 +122,7 @@ export async function saveItem(input: ItemInput): Promise<{ id: string } | { err
     description: String(input.description ?? "").trim().slice(0, 1500) || null,
     category: String(input.category ?? "").trim().slice(0, 60) || null,
     variants: parseVariants(String(input.variants ?? "")),
+    duration_minutes: input.kind === "service" && Number(input.duration) >= 5 ? Math.min(600, Math.round(Number(input.duration))) : null,
     active: Boolean(input.active),
     image_path: ownPath(ctx, input.imagePath) ? input.imagePath : null,
     image_original_path: ownPath(ctx, input.originalPath) ? input.originalPath : null,

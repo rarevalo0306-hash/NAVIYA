@@ -4,6 +4,7 @@ import { SiteView } from "@/components/site-view";
 import type { SiteContent } from "@/lib/site";
 import { createClient } from "@/lib/supabase/server";
 import { LeadForm } from "./lead-form";
+import Link from "next/link";
 import { AddToOrder, OrderBar } from "./order";
 
 async function loadSite(slug: string) {
@@ -31,7 +32,18 @@ export default async function PublicSitePage(props: PageProps<"/sitio/[slug]">) 
     <SiteView
       site={site}
       leadForm={<LeadForm slug={slug} cta={site.copy?.cta ?? site.ctaLabel} copy={site.copy} />}
-      orderButton={(s) => <AddToOrder item={s} slug={slug} />}
+      orderButton={(s) =>
+        s.kind === "service" && site.booking?.enabled ? (
+          <Link
+            href={`/sitio/${slug}/agendar?servicio=${s.id}`}
+            className="inline-flex min-h-11 items-center justify-center rounded-[var(--rb)] border border-current px-4 text-sm font-semibold transition active:scale-[0.98]"
+          >
+            Agendar cita
+          </Link>
+        ) : (
+          <AddToOrder item={s} slug={slug} />
+        )
+      }
       cart={<OrderBar slug={slug} currency={site.currency} />}
     />
   );

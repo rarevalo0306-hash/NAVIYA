@@ -22,6 +22,7 @@ export type FormItem = {
   description: string;
   category: string;
   variants: string;
+  duration: string;
   active: boolean;
   imagePath: string | null;
   originalPath: string | null;
@@ -54,6 +55,7 @@ export function ItemForm(props: {
   const [price, setPrice] = useState(item.price);
   const [description, setDescription] = useState(item.description);
   const [category, setCategory] = useState(item.category);
+  const [duration, setDuration] = useState(item.duration);
   const [variants, setVariants] = useState(item.variants);
   const [active, setActive] = useState(item.active);
 
@@ -168,6 +170,7 @@ export function ItemForm(props: {
       description,
       category,
       variants: kind === "product" ? variants : "",
+      duration: kind === "service" ? duration : "",
       active,
       imagePath: photo?.path ?? null,
       originalPath: original?.path ?? null,
@@ -353,6 +356,13 @@ export function ItemForm(props: {
             </p>
           )}
         </div>
+
+        {kind === "service" && (
+          <label className="flex flex-col gap-2 font-semibold">
+            Duración <span className="text-sm font-normal text-muted">En minutos, para las citas en línea (opcional)</span>
+            <input value={duration} onChange={(e) => setDuration(e.target.value.replace(/\D/g, ""))} inputMode="numeric" maxLength={3} placeholder="Ej.: 60" className={field} />
+          </label>
+        )}
 
         <label className="flex flex-col gap-2 font-semibold">
           Categoría <span className="text-sm font-normal text-muted">Para agrupar en tu página (opcional)</span>
