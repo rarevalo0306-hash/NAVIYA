@@ -150,7 +150,7 @@ export async function chooseKit(index: number) {
   const option = storedOptions(business.brand_options, business)[index];
   if (!option) throw new Error("Propuesta no encontrada");
   const { data: services } = await supabase.from("services").select("name").eq("business_id", business.id).order("sort");
-  const kit = { ...option, base: await writeBase(business, services ?? [], option) };
+  const kit = { ...option, base: await writeBase(business, services ?? [], option, await ownerWords(supabase, business.id)) };
   await saveKit(supabase, business, kit, business.brand_status === "purchased" ? {} : { brand_status: "chosen" });
   await supabase.from("audit_log").insert({
     business_id: business.id,
@@ -173,13 +173,38 @@ export async function drawMoreSymbols() {
   revalidatePath("/onboarding/marca");
 }
 
-// Volver a escribir la base de marca (por ejemplo, después de cambiar el eslogan).
-export async function rewriteBase() {
+// Lo que el dueño contó en la entrevista, con sus palabras (lo más reciente si es muy largo).
+async function ownerWords(supabase: Awaited<ReturnType<typeof requireBusiness>>["supabase"], businessId: string) {
+  const { data } = await supabase.from("interview_messages").select("content").eq("business_id", businessId).eq("role", "owner").order("created_at");
+  return (data ?? []).map((m) => `- ${m.content}`).join("\n").slice(-5000);
+}
+
+// Volver a escribir la base de marca (por ejemplo, después de cambiar el eslogan), con lo que el dueño pide cambiar.
+export async function rewriteBase(formData?: FormData) {
   const { supabase, business } = await requireBusiness();
   const current = storedKit(business.brand_kit, business);
   if (!current) throw new Error("Primero elige una propuesta");
+  const note = String(formData?.get("nota") ?? "").trim().slice(0, 600);
   const { data: services } = await supabase.from("services").select("name").eq("business_id", business.id).order("sort");
-  await saveKit(supabase, business, { ...current, base: await writeBase(business, services ?? [], current) });
+  await saveKit(supabase, business, { ...current, base: await writeBase(business, services ?? [], current, await ownerWords(supabase, business.id), note) });
+  revalidatePath("/onboarding/marca");
+  revalidatePath("/manual-de-marca");
+}
+
+// El dueño corrige a mano su base de marca (es una propuesta de Nuna, no un hecho).
+export async function saveBaseEdits(formData: FormData) {
+  const { supabase, business } = await requireBusiness();
+  const current = storedKit(business.brand_kit, business);
+  if (!current?.base) throw new Error("Primero elige una propuesta");
+  const text = (k: string) => String(formData.get(k) ?? "").trim();
+  // Valores: uno por renglón, «Nombre: qué significa».
+  const values = text("values")
+    .split("\n")
+    .map((line) => line.split(":"))
+    .filter(([name]) => name?.trim())
+    .map(([name, ...rest]) => ({ name: name.trim(), text: rest.join(":").trim() }));
+  const base = { ...current.base, story: text("story"), promise: text("promise"), mission: text("mission"), vision: text("vision"), audience: text("audience"), values };
+  await saveKit(supabase, business, sanitizeKit({ ...current, base }, current));
   revalidatePath("/onboarding/marca");
   revalidatePath("/manual-de-marca");
 }

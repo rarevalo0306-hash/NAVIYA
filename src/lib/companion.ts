@@ -18,7 +18,9 @@ export const STEP_GUIDE: Record<CompanionStep, { tip: string; context: () => str
     tip: "Aquí eliges la marca de tu negocio. Mira las propuestas, ajusta lo que quieras y, cuando te guste, compra tu kit para descargarlo todo. ¿Dudas? Pregúntame.",
     context: () =>
       "Paso «Marca». En esta pantalla el dueño ve propuestas de identidad de marca hechas para su negocio (logo, colores, letras, eslogan e historia). " +
-      "Puede elegir una, pedir más símbolos, ajustar colores, letras o el símbolo, reescribir la base de marca, y subir su propio logo, fotos o su página actual " +
+      "Puede elegir una, pedir más símbolos, ajustar colores, letras o el símbolo, y subir su propio logo, fotos o su página actual " +
+      "La «base de marca» (historia, promesa, misión, visión, valores, cliente ideal) es una PROPUESTA que Nuna escribió con lo que el dueño contó en la entrevista: " +
+      "si la menciona, preséntala así («con lo que me contaste te propongo esto; si algo no es así, lo cambias») y dile que puede editarla ahí mismo o escribir qué cambiar y tocar «Escribir otra versión». " +
       "(si sube su logo, su página usa ese). Ver las propuestas es gratis. " +
       `El kit de marca completo cuesta ${brandKitPrice()} (pago único) e incluye: tablero de marca, logo en todas sus versiones (horizontal, vertical, blanco, un color, símbolo y sello) ` +
       "en SVG, PNG en 4 tamaños, JPG, PDF para Illustrator y PSD, favicon e íconos web; manual de marca en PDF; textos de marca en Word; firma de correo; " +

@@ -16,7 +16,7 @@ import { recraftEnabled } from "@/lib/brand-recraft";
 import { brandKitPrice } from "@/lib/brand-store";
 import { publicAssetUrl, requireBusiness } from "@/lib/business";
 import { slugify } from "@/lib/site";
-import { generateKits, purchaseKit, rewriteBase, saveBrand } from "./actions";
+import { generateKits, purchaseKit, rewriteBase, saveBaseEdits, saveBrand } from "./actions";
 import { KitEditor } from "./kit-editor";
 import { Proposal } from "./proposal-card";
 import { ZipDownload } from "./zip-download";
@@ -169,41 +169,66 @@ export default async function BrandPage(props: PageProps<"/onboarding/marca">) {
 
         {kit && base && (
           <div className="flex flex-col gap-5 rounded-2xl border border-line bg-panel p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-col gap-1">
               <h3 className="font-display text-xl font-bold">Tu base de marca</h3>
-              <form action={rewriteBase}>
+              <p className="text-muted">
+                Nuna la escribió con lo que platicaron en la entrevista. Es una propuesta: si algo no es así, cámbialo aquí mismo o dile a Nuna qué cambiar.
+              </p>
+            </div>
+            <form action={saveBaseEdits} className="grid gap-5 md:grid-cols-2">
+              {(
+                [
+                  ["story", "Historia", base.story, 5],
+                  ["promise", "Promesa", base.promise, 2],
+                  ["mission", "Misión", base.mission, 3],
+                  ["vision", "Visión", base.vision, 3],
+                  ["values", "Valores (uno por renglón: «Nombre: qué significa»)", base.values.map((v) => `${v.name}: ${v.text}`).join("\n"), 4],
+                  ["audience", "Cliente ideal", base.audience, 3],
+                ] as const
+              ).map(([name, label, value, rows]) => (
+                <label key={name} className="flex flex-col gap-1">
+                  <span className="text-sm font-semibold uppercase tracking-wider text-muted">{label}</span>
+                  <textarea
+                    name={name}
+                    defaultValue={value}
+                    rows={rows}
+                    maxLength={name === "story" ? 800 : 400}
+                    className="rounded-xl border border-line bg-ink px-3 py-2 leading-relaxed text-bone"
+                  />
+                </label>
+              ))}
+              <SubmitButton variant="ghost" pendingText="Guardando…" className="self-start md:col-span-2">
+                Guardar mis cambios
+              </SubmitButton>
+            </form>
+            <form action={rewriteBase} className="flex flex-col gap-2 border-t border-line pt-4">
+              <label htmlFor="nota-base" className="text-sm font-semibold text-muted">
+                ¿Prefieres que Nuna la vuelva a escribir? Dile qué cambiar (opcional)
+              </label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  id="nota-base"
+                  name="nota"
+                  maxLength={600}
+                  placeholder="Ej.: el negocio lo empezó mi mamá; atendemos sobre todo a constructores"
+                  className="min-h-11 flex-1 rounded-xl border border-line bg-ink px-3 text-bone placeholder:text-muted/70"
+                />
                 <SubmitButton variant="ghost" pendingText="Nuna está escribiendo…">
                   Escribir otra versión
                 </SubmitButton>
-              </form>
-            </div>
-            <div className="grid gap-5 md:grid-cols-2">
-              <BaseItem title="Historia">{base.story}</BaseItem>
-              <BaseItem title="Promesa">{base.promise}</BaseItem>
-              <BaseItem title="Misión">{base.mission}</BaseItem>
-              <BaseItem title="Visión">{base.vision}</BaseItem>
-              <BaseItem title="Valores">
-                <ul className="flex flex-col gap-1">
-                  {base.values.map((v) => (
-                    <li key={v.name}>
-                      <strong>{v.name}:</strong> {v.text}
-                    </li>
-                  ))}
-                </ul>
-              </BaseItem>
-              <BaseItem title="Cliente ideal">{base.audience}</BaseItem>
-              {purchased ? (
-                <>
-                  <BaseItem title="Bio para redes">{base.bio}</BaseItem>
-                  <BaseItem title="Bienvenida de WhatsApp">{base.whatsappWelcome}</BaseItem>
-                </>
-              ) : (
-                <p className="text-sm text-muted md:col-span-2">
-                  Con el kit completo también recibes la forma de hablar de tu marca, la bio para redes, la descripción para Google
-                  y WhatsApp, el mensaje de bienvenida, hashtags e ideas de publicaciones.
-                </p>
-              )}
-            </div>
+              </div>
+            </form>
+            {purchased ? (
+              <div className="grid gap-5 md:grid-cols-2">
+                <BaseItem title="Bio para redes">{base.bio}</BaseItem>
+                <BaseItem title="Bienvenida de WhatsApp">{base.whatsappWelcome}</BaseItem>
+              </div>
+            ) : (
+              <p className="text-sm text-muted">
+                Con el kit completo también recibes la forma de hablar de tu marca, la bio para redes, la descripción para Google
+                y WhatsApp, el mensaje de bienvenida, hashtags e ideas de publicaciones.
+              </p>
+            )}
           </div>
         )}
 
