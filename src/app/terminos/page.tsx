@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: "Términos de servicio" };
 export default function TermsPage() {
   return (
     <LegalPage title="Términos de servicio">
-      <p>Al crear una cuenta o usar Orbusiness (orbusiness.app) aceptas estos términos. Si no estás de acuerdo, no uses el servicio.</p>
+      <p>Al crear una cuenta o usar Orbusiness (naviya.app) aceptas estos términos. Si no estás de acuerdo, no uses el servicio.</p>
 
       <h2>El servicio</h2>
       <p>

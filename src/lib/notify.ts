@@ -1,16 +1,17 @@
 import "server-only";
+import { APP_HOST, APP_URL } from "@/lib/app-url";
 import { formatSlot } from "@/lib/booking";
 import { money } from "@/lib/interview";
 import { adminEnabled, createAdminClient } from "@/lib/supabase/admin";
 import { sendTemplate, whatsappEnabled } from "@/lib/whatsapp";
 
 // Avisos: al cliente (confirmación de pedido o cita) y al dueño (le llegó un pedido, una cita o un cliente que lo necesita).
-// Correo con Resend (RESEND_API_KEY) desde avisos@orbusiness.app; WhatsApp con plantillas aprobadas por Meta
+// Correo con Resend (RESEND_API_KEY) desde avisos@naviya.app; WhatsApp con plantillas aprobadas por Meta
 // (TWILIO_TEMPLATE_*), porque escribirle primero a alguien en WhatsApp solo se permite con plantilla.
 // Si falta una llave, ese canal simplemente no se usa. Nunca rompen el pedido o la cita: los errores solo se registran.
 
-const APP = "https://orbusiness.app";
-const FROM_DOMAIN = () => process.env.EMAIL_FROM_DOMAIN?.trim() || "orbusiness.app";
+const APP = APP_URL;
+const FROM_DOMAIN = () => process.env.EMAIL_FROM_DOMAIN?.trim() || APP_HOST;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
 async function sendEmail(to: string, subject: string, lines: string[], from: string, replyTo?: string | null) {

@@ -13,7 +13,7 @@ export default async function BrandManualPage() {
   const { supabase, business: b } = await requireBusiness();
   const kit = storedKit(b.brand_kit, b);
   if (!kit || b.brand_status !== "purchased") redirect("/onboarding/marca#kit");
-  const c = await brandCtx(supabase, b, kit, (await headers()).get("host") ?? "orbusiness.app");
+  const c = await brandCtx(supabase, b, kit, (await headers()).get("host") ?? "naviya.app");
   const pages = (await bookPages(c)).length;
   // La versión (fecha de cambio) evita que el navegador muestre páginas viejas después de ajustar la marca.
   const v = encodeURIComponent(b.updated_at);

@@ -27,7 +27,7 @@ export async function GET(request: Request, ctx: RouteContext<"/api/marca/[archi
   if (!b || !kit) return new Response("Todavía no eliges tu kit de marca", { status: 404 });
   if (b.brand_status !== "purchased") return new Response("Compra tu kit de marca para descargarlo", { status: 402 });
 
-  const host = request.headers.get("host") ?? "orbusiness.app";
+  const host = request.headers.get("host") ?? "naviya.app";
   const c = await brandCtx(supabase, b, kit, host);
   if (typeof parsed === "object" && "page" in parsed) {
     const page = await bookPage(c, parsed.page);

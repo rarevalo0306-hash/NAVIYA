@@ -7,7 +7,7 @@ export default function PrivacyPage() {
   return (
     <LegalPage title="Política de privacidad">
       <p>
-        En Orbusiness (orbusiness.app) ayudamos a negocios pequeños a tener su marca, su página web, un CRM y a Nuna, una asistente con
+        En Orbusiness (naviya.app) ayudamos a negocios pequeños a tener su marca, su página web, un CRM y a Nuna, una asistente con
         inteligencia artificial. Esta política explica qué datos usamos, para qué y cuáles son tus derechos.
       </p>
 

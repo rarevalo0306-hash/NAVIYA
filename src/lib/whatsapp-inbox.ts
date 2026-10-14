@@ -1,4 +1,5 @@
 import "server-only";
+import { APP_URL } from "@/lib/app-url";
 import { publicAssetUrl } from "@/lib/business";
 import { checkoutSettings, deliveryFee } from "@/lib/checkout";
 import { notifyHandoff, notifyOrder } from "@/lib/notify";
@@ -88,7 +89,7 @@ export async function handleIncoming(p: Record<string, string>) {
   ]);
   const catalog = items ?? [];
   const started = Date.now();
-  const out = await customerReply(b, catalog, (history ?? []).reverse(), site?.subdomain ? `https://orbusiness.app/sitio/${site.subdomain}` : null);
+  const out = await customerReply(b, catalog, (history ?? []).reverse(), site?.subdomain ? `${APP_URL}/sitio/${site.subdomain}` : null);
   console.log(`WhatsApp: Nuna pensó en ${Date.now() - started} ms`);
 
   // Si la IA falla, el cliente no se queda sin respuesta y el dueño queda avisado en su panel.

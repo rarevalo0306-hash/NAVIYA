@@ -1,9 +1,10 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { APP_HOST } from "@/lib/app-url";
 import type { Database } from "@/lib/database.types";
 
 const PRIVATE_PREFIXES = ["/onboarding", "/panel", "/manual-de-marca", "/vista-previa"];
-const OWN_HOSTS = ["orbusiness.app", "vercel.app", "localhost", "127.0.0.1"];
+const OWN_HOSTS = [APP_HOST, "vercel.app", "localhost", "127.0.0.1"];
 
 // Refresca la sesión de Supabase en cada visita y manda al login
 // a quien intente entrar a una parte privada sin sesión.

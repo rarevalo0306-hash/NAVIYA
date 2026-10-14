@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SubmitButton } from "@/components/submit-button";
+import { APP_HOST } from "@/lib/app-url";
 import { requireBusiness } from "@/lib/business";
 import { requestDomainPurchase } from "./actions";
 import { DomainForm } from "./domain-form";
@@ -16,7 +17,7 @@ export default async function ConnectionsPage() {
     supabase.from("websites").select("subdomain, status").eq("business_id", business.id).maybeSingle(),
     supabase.from("audit_log").select("data, created_at").eq("business_id", business.id).eq("action", "domain.purchase_requested").order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
-  const freeUrl = site?.subdomain ? `orbusiness.app/sitio/${site.subdomain}` : null;
+  const freeUrl = site?.subdomain ? `${APP_HOST}/sitio/${site.subdomain}` : null;
 
   return (
     <div className="flex flex-col gap-6 pb-10">
