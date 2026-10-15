@@ -2,12 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { requireBusiness } from "@/lib/business";
+import { stripeEnabled } from "@/lib/stripe";
 
 export type DomainState = { error?: string; ok?: boolean };
 
 // El dueño escribe su dominio (o lo borra). Queda pendiente hasta que Orbusiness lo conecta.
 export async function saveDomain(_prev: DomainState, formData: FormData): Promise<DomainState> {
   const { supabase, business } = await requireBusiness();
+  if (stripeEnabled() && business.plan !== "pro" && String(formData.get("domain") ?? "").trim()) return { error: "Tu dominio propio está incluido en el plan Pro. Cámbialo en «Mi plan»." };
   const { error } = await supabase.rpc("request_custom_domain", { p_business: business.id, p_domain: String(formData.get("domain") ?? "") });
   if (error) {
     if (error.message.includes("taken")) return { error: "Ese dominio ya lo tiene otro negocio en Orbusiness. Si es tuyo, escríbenos." };

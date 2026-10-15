@@ -17,7 +17,7 @@ export async function videosLeft() {
   const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
   // Los videos fallidos no cuentan.
   const { count } = await supabase.from("videos").select("id", { count: "exact", head: true }).eq("business_id", business.id).neq("status", "failed").gte("created_at", since);
-  return Math.max(0, videoMonthlyLimit() - (count ?? 0));
+  return Math.max(0, videoMonthlyLimit(business.plan) - (count ?? 0));
 }
 
 export async function makeVideo(serviceId: string, opts: { aspect: string; seconds: number; idea: string }): Promise<{ ok: true } | { error: string }> {
@@ -28,7 +28,7 @@ export async function makeVideo(serviceId: string, opts: { aspect: string; secon
   const { supabase, user, business } = await requireBusiness();
   const { data: item } = await supabase.from("services").select("id, name, description, image_path").eq("id", serviceId).eq("business_id", business.id).maybeSingle();
   if (!item?.image_path) return { error: "Primero ponle una foto al producto." };
-  if ((await videosLeft()) <= 0) return { error: `Ya usaste tus ${videoMonthlyLimit()} videos de este mes.` };
+  if ((await videosLeft()) <= 0) return { error: `Ya usaste tus ${videoMonthlyLimit(business.plan)} videos de este mes.${business.plan === "pro" ? "" : " Con el plan Pro tienes 10."}` };
   const { count: busy } = await supabase.from("videos").select("id", { count: "exact", head: true }).eq("business_id", business.id).eq("status", "generating");
   if ((busy ?? 0) >= MAX_GENERATING) return { error: "Ya hay videos haciéndose. Espera a que terminen." };
 

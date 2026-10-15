@@ -15,6 +15,7 @@ export function PanelNav({ sitePath, done }: { sitePath: string | null; done: bo
     { href: sitePath ?? "/onboarding/web", label: "Mi página", external: Boolean(sitePath) },
     { href: "/onboarding/marca", label: "Mi marca" },
     { href: "/panel/conexiones", label: "Conexiones" },
+    { href: "/panel/plan", label: "Mi plan" },
     { href: "/onboarding/entrevista", label: "Ajustar mi negocio" },
   ];
   const active = (href: string) => (href === "/panel" ? path === "/panel" : path?.startsWith(href));

@@ -53,6 +53,11 @@ export type Database = {
           nuna_replies: boolean;
           checkout: Json;
           booking: Json;
+          plan: string | null;
+          subscription_status: string | null;
+          stripe_customer_id: string | null;
+          stripe_subscription_id: string | null;
+          plan_renews_at: string | null;
           created_at: string;
           updated_at: string;
         },
@@ -88,6 +93,11 @@ export type Database = {
           nuna_replies?: boolean;
           checkout?: Json;
           booking?: Json;
+          plan?: string | null;
+          subscription_status?: string | null;
+          stripe_customer_id?: string | null;
+          stripe_subscription_id?: string | null;
+          plan_renews_at?: string | null;
         }
       >;
       memberships: Table<

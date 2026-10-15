@@ -6,7 +6,9 @@ import { kitPalette, marksFor, sanitizeKit, storedKit, storedOptions, type Brand
 import { proposeKits, writeBase } from "@/lib/brand-ai";
 import { drawSymbols, recraftEnabled } from "@/lib/brand-recraft";
 import { brandKitPrice, saveKit } from "@/lib/brand-store";
+import { APP_URL } from "@/lib/app-url";
 import { requireBusiness } from "@/lib/business";
+import { stripe, stripeEnabled } from "@/lib/stripe";
 import type { Json } from "@/lib/database.types";
 
 const KINDS = ["logo", "photo"] as const;
@@ -224,6 +226,19 @@ export async function purchaseKit() {
   const { supabase, user, business } = await requireBusiness();
   const kit = storedKit(business.brand_kit, business);
   if (!kit) throw new Error("Primero elige una propuesta");
+  // Con Stripe activado se paga de verdad; el webhook marca la compra (lib/billing.ts).
+  if (business.brand_status !== "purchased" && stripeEnabled()) {
+    const session = await stripe<{ url: string }>("/checkout/sessions", {
+      mode: "payment",
+      line_items: [{ quantity: 1, price_data: { currency: "usd", unit_amount: Math.round(Number(brandKitPrice().replace(/[^\d.]/g, "")) * 100), product_data: { name: `Kit de marca · ${business.name}` } } }],
+      customer_email: user.email ?? undefined,
+      client_reference_id: business.id,
+      metadata: { business_id: business.id, kind: "brand_kit" },
+      success_url: `${APP_URL}/onboarding/marca?comprado=1#kit`,
+      cancel_url: `${APP_URL}/onboarding/marca#kit`,
+    });
+    redirect(session.url);
+  }
   if (business.brand_status !== "purchased") {
     const { error } = await supabase.rpc("purchase_brand_kit_test", { p_business: business.id });
     if (error) throw new Error(error.message);

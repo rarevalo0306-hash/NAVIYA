@@ -3,6 +3,7 @@ import { z } from "zod";
 import { kitPalette, storedKit } from "@/lib/brand";
 import type { BusinessRow } from "@/lib/interview";
 import { aiJson } from "@/lib/nuna";
+import { PLANS, isPlan } from "@/lib/stripe";
 
 // Videos de productos para redes con Seedance (ByteDance) en Replicate.
 // La foto del producto va como imagen de referencia ([Image1]) para poder elegir el formato (vertical o cuadrado).
@@ -12,7 +13,8 @@ const TOKEN = () => process.env.REPLICATE_API_TOKEN?.trim() || "";
 const MODEL = () => process.env.VIDEO_MODEL?.trim() || "bytedance/seedance-2.5";
 const API = "https://api.replicate.com/v1";
 export const videoEnabled = () => Boolean(TOKEN());
-export const videoMonthlyLimit = () => Number(process.env.VIDEO_MONTHLY_LIMIT) || 10; // videos por negocio cada 30 días
+// Videos por negocio cada 30 días: los del plan (Esencial 3, Pro 10); VIDEO_MONTHLY_LIMIT lo cambia para todos.
+export const videoMonthlyLimit = (plan: string | null) => Number(process.env.VIDEO_MONTHLY_LIMIT) || (isPlan(plan) ? PLANS[plan].videos : PLANS.esencial.videos);
 
 export type Aspect = "9:16" | "1:1";
 
