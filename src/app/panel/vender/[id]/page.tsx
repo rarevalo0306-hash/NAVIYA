@@ -2,8 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { publicAssetUrl, requireBusiness } from "@/lib/business";
 import { recraftEnabled, variantsText } from "@/lib/catalog";
+import { videoEnabled } from "@/lib/video";
 import { aiVoiceEnabled } from "@/lib/voice-ai";
 import { ItemForm } from "../item-form";
+import { refreshVideos, videosLeft } from "../video-actions";
+import { VideoPanel } from "./video-panel";
 
 // Agregar ("nuevo") o editar un producto o servicio.
 export default async function ItemPage(props: { params: Promise<{ id: string }>; searchParams: Promise<{ tipo?: string }> }) {
@@ -47,6 +50,7 @@ export default async function ItemPage(props: { params: Promise<{ id: string }>;
           originalUrl: item?.image_original_path ? publicAssetUrl(item.image_original_path) : null,
         }}
       />
+      {item && videoEnabled() && <VideoPanel serviceId={item.id} hasPhoto={Boolean(item.image_path)} left={await videosLeft()} initial={await refreshVideos(item.id)} />}
     </div>
   );
 }

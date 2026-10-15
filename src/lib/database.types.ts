@@ -340,6 +340,22 @@ export type Database = {
         { business_id: string; title: string; starts_at: string; ends_at: string; kind?: string; status?: string; notes?: string | null; contact_id?: string | null; service_id?: string | null; customer_name?: string | null; customer_phone?: string | null; customer_email?: string | null; source?: string }
       >;
       custom_domains: Table<{ domain: string; business_id: string; verified: boolean; created_at: string }, { domain: string; business_id: string; verified?: boolean }>;
+      videos: Table<
+        {
+          id: string;
+          business_id: string;
+          service_id: string | null;
+          status: string;
+          prompt: string;
+          aspect: string;
+          seconds: number;
+          prediction_id: string | null;
+          video_path: string | null;
+          error: string | null;
+          created_at: string;
+        },
+        { business_id: string; prompt: string; aspect: string; seconds: number; service_id?: string | null; status?: string; prediction_id?: string | null; video_path?: string | null; error?: string | null }
+      >;
     };
     Views: { [_ in never]: never };
     Functions: {
